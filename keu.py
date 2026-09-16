@@ -104,23 +104,23 @@ with tab1:
 
         uang_kembalian = uang_tunai - total_belanja_semua
 
-        if st.button("✨ Proses Nota Pembelian"):
+        if if st.button("✨ Proses Nota Pembelian"):
             waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             # --- PENGATURAN KANVAS & FONT PAS PERSIS CONTOH (58MM) ---
-            canvas_width = 384  # Standar mutlak printer 58mm
+            canvas_width = 384  # Lebar standar mutlak printer thermal 58mm
             margin_left = 15  
             margin_right = 15
             
-            estimated_height = 900 + (len(st.session_state.keranjang) * 110)
+            estimated_height = 1000 + (len(st.session_state.keranjang) * 120)
             img = Image.new("RGB", (canvas_width, estimated_height), color=(255, 255, 255))
             draw = ImageDraw.Draw(img)
 
             try:
-                # Disesuaikan ukurannya agar besar, tebal, dan proporsional seperti foto kanan
-                font = ImageFont.truetype("arial.ttf", 26)        # Teks biasa / detail
-                font_bold = ImageFont.truetype("arial.ttf", 28)   # Nama barang / total
-                font_title = ImageFont.truetype("arial.ttf", 32)  # Judul toko
+                # Menyesuaikan ukuran agar presisi dengan cetakan thermal kasir
+                font = ImageFont.truetype("arial.ttf", 22)         # Teks biasa / detail tanggal & telp
+                font_bold = ImageFont.truetype("arial.ttf", 24)    # Nama barang & angka rincian
+                font_title = ImageFont.truetype("arial.ttf", 26)   # Judul toko
             except:
                 font = ImageFont.load_default()
                 font_bold = ImageFont.load_default()
@@ -136,29 +136,29 @@ with tab1:
 
             # Header Toko (Rata Tengah)
             draw_center(y_offset, "TOKO JABON KIDUL SEPUR", font_title)
-            y_offset += 40
-            draw_center(y_offset, "Desa Jabon - Jombang", font)
-            y_offset += 32
+            y_offset += 35
+            draw_center(y_offset, "Jabon - Jombang", font)
+            y_offset += 28
             draw_center(y_offset, "Tel. 0857 3395 8305", font)
-            y_offset += 35
-            draw_center(y_offset, "-------------------------------------------------------------", font)
-            y_offset += 35
+            y_offset += 32
+            draw_center(y_offset, "----------------------------------------------------------------", font)
+            y_offset += 30
 
             # Info Transaksi (Rata Kiri)
             draw.text((margin_left, y_offset), f"Tgl : {waktu_sekarang}", fill=(0, 0, 0), font=font)
+            y_offset += 28
+            draw.text((margin_left, y_offset), f"Pelanggan: {nama_pembeli}", fill=(0, 0, 0), font=font)
+            y_offset += 32
+            draw_center(y_offset, "----------------------------------------------------------------", font)
             y_offset += 30
-            draw.text((margin_left, y_offset), f"Plg : {nama_pembeli}", fill=(0, 0, 0), font=font)
-            y_offset += 35
-            draw_center(y_offset, "-------------------------------------------------------------", font)
-            y_offset += 35
 
-            # Daftar Barang (Format persis seperti contoh kanan: Nama di atas, Harga x Qty & Subtotal di bawah)
+            # Daftar Barang (Format persis contoh: Nama barang di atas, Harga x Qty di kiri & Subtotal di kanan)
             for item in st.session_state.keranjang:
                 draw.text((margin_left, y_offset), f"{item['Nama Barang']}", fill=(0, 0, 0), font=font_bold)
-                y_offset += 32
+                y_offset += 30
                 
-                detail_kiri = f"{item['Harga Satuan']:,.0f} x {item['Qty']}"
-                detail_kanan = f"{item['Subtotal']:,.0f}"
+                detail_kiri = f"{item['Harga Satuan']:,.0f} x {item['Qty']} item".replace(',', '.')
+                detail_kanan = f"{item['Subtotal']:,.0f}".replace(',', '.')
                 
                 draw.text((margin_left, y_offset), detail_kiri, fill=(0, 0, 0), font=font)
                 
@@ -166,34 +166,72 @@ with tab1:
                 w_kanan = bbox_kanan[2] - bbox_kanan[0]
                 x_kanan = canvas_width - margin_right - w_kanan
                 draw.text((x_kanan, y_offset), detail_kanan, fill=(0, 0, 0), font=font)
-                y_offset += 40
+                y_offset += 36
 
-            draw_center(y_offset, "-------------------------------------------------------------", font)
-            y_offset += 35
+            draw_center(y_offset, "----------------------------------------------------------------", font)
+            y_offset += 30
 
-            # Total, Tunai, Kembalian (Format Sejajar Kiri-Kanan)
+            # Ringkasan Total, Tunai, Kembalian (Format Sejajar Kiri-Kanan)
             items_ringkasan = [
-                ("Total", f"{total_belanja_semua:,.0f}"),
-                ("Tunai", f"{uang_tunai:,.0f}"),
-                ("Kembalian", f"{uang_kembalian:,.0f}")
+                ("Subtotal", f"{total_belanja_semua:,.0f}".replace(',', '.')),
+                ("Total", f"{total_belanja_semua:,.0f}".replace(',', '.')),
+                ("Tunai", f"{uang_tunai:,.0f}".replace(',', '.')),
+                ("Kembalian", f"{uang_kembalian:,.0f}".replace(',', '.'))
             ]
 
             for label_txt, nilai_txt in items_ringkasan:
-                draw.text((margin_left, y_offset), label_txt, fill=(0, 0, 0), font=font_bold if label_txt == "Total" else font)
-                
-                bbox_val = draw.textbbox((0, 0), nilai_txt, font=font_bold if label_txt == "Total" else font)
-                w_val = bbox_val[2] - bbox_val[0]
-                x_val = canvas_width - margin_right - w_val
-                
-                draw.text((x_val, y_offset), nilai_txt, fill=(0, 0, 0), font=font_bold if label_txt == "Total" else font)
-                y_offset += 36
+                if label_txt == "Subtotal":
+                    draw.text((margin_left, y_offset), label_txt, fill=(0, 0, 0), font=font)
+                    bbox_val = draw.textbbox((0, 0), nilai_txt, font=font)
+                    w_val = bbox_val[2] - bbox_val[0]
+                    x_val = canvas_width - margin_right - w_val
+                    draw.text((x_val, y_offset), nilai_txt, fill=(0, 0, 0), font=font)
+                    y_offset += 30
+                    draw_center(y_offset, "----------------------------------------------------------------", font)
+                    y_offset += 30
+                else:
+                    is_bold = label_txt == "Total"
+                    f_used = font_bold if is_bold else font
+                    
+                    draw.text((margin_left, y_offset), label_txt, fill=(0, 0, 0), font=f_used)
+                    bbox_val = draw.textbbox((0, 0), nilai_txt, font=f_used)
+                    w_val = bbox_val[2] - bbox_val[0]
+                    x_val = canvas_width - margin_right - w_val
+                    draw.text((x_val, y_offset), nilai_txt, fill=(0, 0, 0), font=f_used)
+                    y_offset += 32
 
-            draw_center(y_offset, "-------------------------------------------------------------", font)
-            y_offset += 40
+            draw_center(y_offset, "----------------------------------------------------------------", font)
+            y_offset += 35
 
             # Footer
-            draw_center(y_offset, "Terima Kasih Telah Berbelanja", font)
+            draw_center(y_offset, "Terima Kasih", font_bold)
             y_offset += 45
+
+            img_final = img.crop((0, 0, canvas_width, y_offset + 10))
+
+            buf = io.BytesIO()
+            img_final.save(buf, format="PNG")
+            byte_im = buf.getvalue()
+            
+            base64_img = base64.b64encode(byte_im).decode('utf-8')
+            rawbt_url = f"rawbt:data:image/png;base64,{base64_img}"
+
+            st.success("Layout dan ukuran struk berhasil disamakan persis dengan contoh!")
+
+            st.markdown(f"""
+                <div style="text-align: center; margin-top: 15px;">
+                    <a href="{rawbt_url}" target="_blank" style="background-color: #ff4b4b; color: white; padding: 12px 24px; text-decoration: none; font-size: 16px; border-radius: 6px; font-weight: bold; display: inline-block;">
+                        🖨️ Cetak Struk (Kirim ke RawBT)
+                    </a>
+                </div>
+            """, unsafe_allow_html=True)
+
+            st.download_button(
+                label="📥 Download Gambar Nota (.png)",
+                data=byte_im,
+                file_name=f"nota_{nama_pembeli}.png",
+                mime="image/png"
+            )
 
             img_final = img.crop((0, 0, canvas_width, y_offset + 10))
 
