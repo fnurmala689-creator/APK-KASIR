@@ -132,30 +132,30 @@ with tab1:
                 x = (canvas_width - w) / 2
                 draw.text((x, y), text, fill=(0, 0, 0), font=f)
 
-            y_offset = 20  
+            y_offset = 5 
 
             # Header Toko (Rata Tengah)
             draw_center(y_offset, "TOKO JABON KIDUL SEPUR", font_title)
-            y_offset += 35
+            y_offset += 5
             draw_center(y_offset, "Jabon - Jombang", font)
-            y_offset += 28
+            y_offset += 5
             draw_center(y_offset, "Tel. 0857 3395 8305", font)
-            y_offset += 32
+            y_offset += 5
             draw_center(y_offset, "----------------------------------------------------------------", font)
-            y_offset += 30
+            y_offset += 5
 
             # Info Transaksi (Rata Kiri)
             draw.text((margin_left, y_offset), f"Tgl : {waktu_sekarang}", fill=(0, 0, 0), font=font)
-            y_offset += 28
+            y_offset += 5
             draw.text((margin_left, y_offset), f"Pelanggan: {nama_pembeli}", fill=(0, 0, 0), font=font)
-            y_offset += 32
+            y_offset += 5
             draw_center(y_offset, "----------------------------------------------------------------", font)
-            y_offset += 30
+            y_offset += 5
 
             # Daftar Barang (Format persis contoh: Nama barang di atas, Harga x Qty di kiri & Subtotal di kanan)
             for item in st.session_state.keranjang:
                 draw.text((margin_left, y_offset), f"{item['Nama Barang']}", fill=(0, 0, 0), font=font_bold)
-                y_offset += 30
+                y_offset += 5
                 
                 detail_kiri = f"{item['Harga Satuan']:,.0f} x {item['Qty']} item".replace(',', '.')
                 detail_kanan = f"{item['Subtotal']:,.0f}".replace(',', '.')
@@ -166,10 +166,10 @@ with tab1:
                 w_kanan = bbox_kanan[2] - bbox_kanan[0]
                 x_kanan = canvas_width - margin_right - w_kanan
                 draw.text((x_kanan, y_offset), detail_kanan, fill=(0, 0, 0), font=font)
-                y_offset += 36
+                y_offset += 5
 
             draw_center(y_offset, "----------------------------------------------------------------", font)
-            y_offset += 30
+            y_offset += 5
 
             # Ringkasan Total, Tunai, Kembalian (Format Sejajar Kiri-Kanan)
             items_ringkasan = [
@@ -186,9 +186,9 @@ with tab1:
                     w_val = bbox_val[2] - bbox_val[0]
                     x_val = canvas_width - margin_right - w_val
                     draw.text((x_val, y_offset), nilai_txt, fill=(0, 0, 0), font=font)
-                    y_offset += 30
+                    y_offset += 5
                     draw_center(y_offset, "----------------------------------------------------------------", font)
-                    y_offset += 30
+                    y_offset += 5
                 else:
                     is_bold = label_txt == "Total"
                     f_used = font_bold if is_bold else font
@@ -198,14 +198,14 @@ with tab1:
                     w_val = bbox_val[2] - bbox_val[0]
                     x_val = canvas_width - margin_right - w_val
                     draw.text((x_val, y_offset), nilai_txt, fill=(0, 0, 0), font=f_used)
-                    y_offset += 32
+                    y_offset += 5
 
             draw_center(y_offset, "----------------------------------------------------------------", font)
-            y_offset += 35
+            y_offset += 5
 
             # Footer
             draw_center(y_offset, "Terima Kasih", font_bold)
-            y_offset += 45
+            y_offset += 10
 
             img_final = img.crop((0, 0, canvas_width, y_offset + 10))
 
@@ -216,7 +216,7 @@ with tab1:
             base64_img = base64.b64encode(byte_im).decode('utf-8')
             rawbt_url = f"rawbt:data:image/png;base64,{base64_img}"
 
-            st.success("Layout dan ukuran struk berhasil disamakan persis dengan contoh!")
+            st.success("Struk berhasil dicetak!")
 
             st.markdown(f"""
                 <div style="text-align: center; margin-top: 15px;">
