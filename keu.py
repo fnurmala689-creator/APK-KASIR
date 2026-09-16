@@ -107,21 +107,20 @@ with tab1:
         if st.button("✨ Proses Nota Pembelian"):
             waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            # --- PENGATURAN KANVAS & FONT STANDAR THERMAL 58MM ---
-            canvas_width = 384  # Lebar standar mutlak kertas thermal 58mm
+            # --- PENGATURAN KANVAS & FONT PAS PERSIS CONTOH (58MM) ---
+            canvas_width = 384  # Standar mutlak printer 58mm
             margin_left = 15  
             margin_right = 15
-            max_text_width = canvas_width - (margin_left + margin_right)
             
-            estimated_height = 800 + (len(st.session_state.keranjang) * 90)
+            estimated_height = 900 + (len(st.session_state.keranjang) * 110)
             img = Image.new("RGB", (canvas_width, estimated_height), color=(255, 255, 255))
             draw = ImageDraw.Draw(img)
 
             try:
-                # Ukuran font disesuaikan agar mirip persis dengan contoh nota 58mm
-                font = ImageFont.truetype("arial.ttf", 95)
-                font_bold = ImageFont.truetype("arial.ttf", 95)
-                font_title = ImageFont.truetype("arial.ttf", 100)
+                # Disesuaikan ukurannya agar besar, tebal, dan proporsional seperti foto kanan
+                font = ImageFont.truetype("arial.ttf", 26)        # Teks biasa / detail
+                font_bold = ImageFont.truetype("arial.ttf", 28)   # Nama barang / total
+                font_title = ImageFont.truetype("arial.ttf", 32)  # Judul toko
             except:
                 font = ImageFont.load_default()
                 font_bold = ImageFont.load_default()
@@ -137,41 +136,40 @@ with tab1:
 
             # Header Toko (Rata Tengah)
             draw_center(y_offset, "TOKO JABON KIDUL SEPUR", font_title)
-            y_offset += 28
+            y_offset += 40
             draw_center(y_offset, "Desa Jabon - Jombang", font)
-            y_offset += 24
+            y_offset += 32
             draw_center(y_offset, "Tel. 0857 3395 8305", font)
-            y_offset += 26
-            draw_center(y_offset, "-----------------------------------------------------------------", font)
-            y_offset += 26
+            y_offset += 35
+            draw_center(y_offset, "-------------------------------------------------------------", font)
+            y_offset += 35
 
             # Info Transaksi (Rata Kiri)
             draw.text((margin_left, y_offset), f"Tgl : {waktu_sekarang}", fill=(0, 0, 0), font=font)
-            y_offset += 22
+            y_offset += 30
             draw.text((margin_left, y_offset), f"Plg : {nama_pembeli}", fill=(0, 0, 0), font=font)
-            y_offset += 26
-            draw_center(y_offset, "-----------------------------------------------------------------", font)
-            y_offset += 26
+            y_offset += 35
+            draw_center(y_offset, "-------------------------------------------------------------", font)
+            y_offset += 35
 
-            # Daftar Barang (Format Nama di Atas, Detail Qty x Harga di Bawah Rata Kanan/Kiri)
+            # Daftar Barang (Format persis seperti contoh kanan: Nama di atas, Harga x Qty & Subtotal di bawah)
             for item in st.session_state.keranjang:
                 draw.text((margin_left, y_offset), f"{item['Nama Barang']}", fill=(0, 0, 0), font=font_bold)
-                y_offset += 22
+                y_offset += 32
                 
-                detail_kiri = f"  {item['Qty']} x {item['Harga Satuan']:,.0f}"
+                detail_kiri = f"{item['Harga Satuan']:,.0f} x {item['Qty']}"
                 detail_kanan = f"{item['Subtotal']:,.0f}"
                 
                 draw.text((margin_left, y_offset), detail_kiri, fill=(0, 0, 0), font=font)
                 
-                # Hitung posisi teks kanan agar rapi di ujung kanan kertas
                 bbox_kanan = draw.textbbox((0, 0), detail_kanan, font=font)
                 w_kanan = bbox_kanan[2] - bbox_kanan[0]
                 x_kanan = canvas_width - margin_right - w_kanan
                 draw.text((x_kanan, y_offset), detail_kanan, fill=(0, 0, 0), font=font)
-                y_offset += 28
+                y_offset += 40
 
-            draw_center(y_offset, "-----------------------------------------------------------------", font)
-            y_offset += 26
+            draw_center(y_offset, "-------------------------------------------------------------", font)
+            y_offset += 35
 
             # Total, Tunai, Kembalian (Format Sejajar Kiri-Kanan)
             items_ringkasan = [
@@ -188,14 +186,14 @@ with tab1:
                 x_val = canvas_width - margin_right - w_val
                 
                 draw.text((x_val, y_offset), nilai_txt, fill=(0, 0, 0), font=font_bold if label_txt == "Total" else font)
-                y_offset += 26
+                y_offset += 36
 
-            draw_center(y_offset, "-----------------------------------------------------------------", font)
-            y_offset += 30
+            draw_center(y_offset, "-------------------------------------------------------------", font)
+            y_offset += 40
 
             # Footer
             draw_center(y_offset, "Terima Kasih Telah Berbelanja", font)
-            y_offset += 35
+            y_offset += 45
 
             img_final = img.crop((0, 0, canvas_width, y_offset + 10))
 
@@ -206,7 +204,7 @@ with tab1:
             base64_img = base64.b64encode(byte_im).decode('utf-8')
             rawbt_url = f"rawbt:data:image/png;base64,{base64_img}"
 
-            st.success("Nota 58mm berhasil dibuat sesuai standar contoh!")
+            st.success("Ukuran font dan layout berhasil disamakan persis dengan contoh!")
 
             st.markdown(f"""
                 <div style="text-align: center; margin-top: 15px;">
