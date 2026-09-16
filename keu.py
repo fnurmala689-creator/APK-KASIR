@@ -1,12 +1,14 @@
 ﻿import streamlit as st
 import pandas as pd
 from datetime import datetime
-import urllib.parse
+from PIL import Image, ImageDraw, ImageFont
+import io
+import base64
 
 st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 
 st.title("🏪 Kasir Toko Sembako")
-st.markdown("Aplikasi Kasir Praktis & Cetak Otomatis via RawBT")
+st.markdown("Aplikasi Kasir Praktis & Cetak Gambar via RawBT")
 
 # Inisialisasi Database Produk
 if "df_produk" not in st.session_state:
@@ -100,40 +102,84 @@ with tab1:
 
         if st.button("✨ Proses Nota Pembelian"):
             waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            
-            # Susun teks struk khusus printer thermal 58mm (lebar ~32 karakter)
-            teks_struk = "================================\n"
-            teks_struk += "       TOKO SEMBAKO BERKAH     \n"
-            teks_struk += "     Jl. Raya Sembako Jombang   \n"
-            teks_struk += "================================\n"
-            teks_struk += f"Tgl : {waktu_sekarang}\n"
-            teks_struk += f"Pelanggan : {nama_pembeli}\n"
-            teks_struk += "--------------------------------\n"
-            
+
+            # --- MEMBUAT GAMBAR STRUK (RATA TENGAH UNTUK 58MM) ---
+            img_width, img_height = 450, 500 + (len(st.session_state.keranjang) * 60)
+            img = Image.new("RGB", (img_width, img_height), color=(255, 255, 255))
+            draw = ImageDraw.Draw(img)
+
+            try:
+                font = ImageFont.truetype("arial.ttf", 16)
+            except:
+                font = ImageFont.load_default()
+
+            def draw_center(y, text, f):
+                bbox = draw.textbbox((0, 0), text, font=f)
+                w = bbox[2] - bbox[0]
+                x = (img_width - w) / 2
+                draw.text((x, y), text, fill=(0, 0, 0), font=f)
+
+            y_offset = 25
+            lines_to_draw = [
+                "========================================",
+                "TOKO SEMBAKO BERKAH",
+                "Jl. Raya Sembako Jombang",
+                "========================================",
+                f"Tanggal  : {waktu_sekarang}",
+                f"Pembeli  : {nama_pembeli}",
+                "----------------------------------------"
+            ]
+
+            for line in lines_to_draw:
+                draw_center(y_offset, line, font)
+                y_offset += 25
+
             for item in st.session_state.keranjang:
-                teks_struk += f"{item['Nama Barang']}\n"
-                teks_struk += f"  {item['Qty']} x {item['Harga Satuan']:,.0f} = {item['Subtotal']:,.0f}\n"
-                
-            teks_struk += "--------------------------------\n"
-            teks_struk += f"TOTAL: Rp {total_belanja_semua:,.0f}\n"
-            teks_struk += "================================\n"
-            teks_struk += "   TERIMA KASIH TELAH BELANJA   \n"
-            teks_struk += "================================\n\n\n"
+                t1 = f"{item['Nama Barang']}"
+                t2 = f"{item['Qty']} x Rp {item['Harga Satuan']:,.0f} = Rp {item['Subtotal']:,.0f}"
+                draw_center(y_offset, t1, font)
+                y_offset += 22
+                draw_center(y_offset, t2, font)
+                y_offset += 25
+                draw_center(y_offset, "----------------------------------------", font)
+                y_offset += 25
 
-            st.success("Nota berhasil dibuat! Silakan klik tombol cetak di bawah.")
+            footer_lines = [
+                f"TOTAL    : Rp {total_belanja_semua:,.0f}",
+                "========================================",
+                "TERIMA KASIH TELAH BERBELANJA!",
+                "========================================"
+            ]
 
-            # Encode teks agar aman dikirim ke URL RawBT
-            encoded_text = urllib.parse.quote(teks_struk)
-            rawbt_url = f"rawbt:data:text/plain;charset=utf-8,{encoded_text}"
+            for line in footer_lines:
+                draw_center(y_offset, line, font)
+                y_offset += 25
 
-            # Tombol Cetak langsung memicu aplikasi RawBT
+            buf = io.BytesIO()
+            img.save(buf, format="PNG")
+            byte_im = buf.getvalue()
+            
+            # Konversi gambar ke Base64 untuk dikirim ke RawBT
+            base64_img = base64.b64encode(byte_im).decode('utf-8')
+            rawbt_url = f"rawbt:data:image/png;base64,{base64_img}"
+
+            st.success("Nota berhasil dibuat!")
+
+            # Tombol Cetak Gambar Langsung via RawBT
             st.markdown(f"""
                 <div style="text-align: center; margin-top: 15px;">
                     <a href="{rawbt_url}" target="_blank" style="background-color: #ff4b4b; color: white; padding: 12px 24px; text-decoration: none; font-size: 16px; border-radius: 6px; font-weight: bold; display: inline-block;">
-                        🖨️ Cetak Langsung via RawBT
+                        🖨️ Cetak Struk (Kirim ke RawBT)
                     </a>
                 </div>
             """, unsafe_allow_html=True)
-            
+
+            # Cadangan tombol download manual jika diperlukan
+            st.download_button(
+                label="📥 Download Gambar Nota (.png)",
+                data=byte_im,
+                file_name=f"nota_{nama_pembeli}.png",
+                mime="image/png"
+            )
     else:
         st.info("Keranjang masih kosong. Silakan cari dan tambah barang di atas.")
