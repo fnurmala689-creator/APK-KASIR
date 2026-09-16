@@ -105,16 +105,18 @@ with tab1:
 
             # --- MEMBUAT GAMBAR STRUK ---
             canvas_width = 450
-            margin_left = 30  
+            margin_left = 20
+            margin_right = 20
+            max_text_width = canvas_width - margin_left - margin_right
             
-            estimated_height = 800 + (len(st.session_state.keranjang) * 110)
+            estimated_height = 600 + (len(st.session_state.keranjang) * 65)
             img = Image.new("RGB", (canvas_width, estimated_height), color=(255, 255, 255))
             draw = ImageDraw.Draw(img)
 
             try:
-                font = ImageFont.truetype("arial.ttf", 28)
-                font_bold = ImageFont.truetype("arial.ttf", 32)
-                font_title = ImageFont.truetype("arial.ttf", 38)
+                font = ImageFont.truetype("arial.ttf", 18)
+                font_bold = ImageFont.truetype("arial.ttf", 18)
+                font_title = ImageFont.truetype("arial.ttf", 20)
             except:
                 font = ImageFont.load_default()
                 font_bold = ImageFont.load_default()
@@ -126,47 +128,47 @@ with tab1:
                 x = (canvas_width - w) / 2
                 draw.text((x, y), text, fill=(0, 0, 0), font=f)
 
-            y_offset = 35  
+            y_offset = 15  
 
             # Header (Rata Tengah dengan Nomor Telepon)
             draw_center(y_offset, "TOKO JABON KIDUL SEPUR", font_title)
-            y_offset += 48
+            y_offset += 20
             draw_center(y_offset, "Desa Jabon - Jombang", font)
-            y_offset += 38
+            y_offset += 18
             draw_center(y_offset, "Tel. 0857 3395 8305", font)
-            y_offset += 42
+            y_offset += 16
             draw_center(y_offset, "========================================", font)
-            y_offset += 45
+            y_offset += 16
 
             # Info Transaksi (Rata Kiri)
             draw.text((margin_left, y_offset), f"Tanggal : {waktu_sekarang}", fill=(0, 0, 0), font=font)
-            y_offset += 40
+            y_offset += 22
             draw.text((margin_left, y_offset), f"Pembeli : {nama_pembeli}", fill=(0, 0, 0), font=font)
-            y_offset += 45
+            y_offset += 24
             draw_center(y_offset, "----------------------------------------", font)
-            y_offset += 45
+            y_offset += 25
 
             # Daftar Barang (Rata Kiri)
             for item in st.session_state.keranjang:
                 draw.text((margin_left, y_offset), f"- {item['Nama Barang']}", fill=(0, 0, 0), font=font_bold)
-                y_offset += 42
+                y_offset += 24
                 
                 detail_hrg = f"  {item['Qty']} x {item['Harga Satuan']:,.0f} = {item['Subtotal']:,.0f}"
                 draw.text((margin_left, y_offset), detail_hrg, fill=(0, 0, 0), font=font)
-                y_offset += 52
+                y_offset += 24
 
             draw_center(y_offset, "----------------------------------------", font)
-            y_offset += 45
+            y_offset += 25
 
             # Total & Footer
             total_text = f"TOTAL: Rp {total_belanja_semua:,.0f}"
             draw_center(y_offset, total_text, font_title)
-            y_offset += 55
+            y_offset += 26
             
             draw_center(y_offset, "TERIMA KASIH & SEMOGA BERKAH!", font_bold)
-            y_offset += 45
+            y_offset += 35
 
-            img_final = img.crop((0, 0, canvas_width, y_offset + 30))
+            img_final = img.crop((0, 0, canvas_width, y_offset))
 
             buf = io.BytesIO()
             img_final.save(buf, format="PNG")
