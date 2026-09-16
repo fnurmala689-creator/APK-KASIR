@@ -108,7 +108,7 @@ with tab1:
             waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             # --- PENGATURAN KANVAS & FONT PAS PERSIS CONTOH (58MM) ---
-            canvas_width = 384  # Lebar standar mutlak printer thermal 58mm
+            canvas_width = 576  # Lebar standar mutlak printer thermal 58mm
             margin_left = 15  
             margin_right = 15
             
@@ -118,9 +118,9 @@ with tab1:
 
             try:
                 # Menyesuaikan ukuran agar presisi dengan cetakan thermal kasir
-                font = ImageFont.truetype("arial.ttf", 90)         # Teks biasa / detail tanggal & telp
-                font_bold = ImageFont.truetype("arial.ttf", 92)    # Nama barang & angka rincian
-                font_title = ImageFont.truetype("arial.ttf", 94)   # Judul toko
+                font = ImageFont.truetype("arial.ttf", 50)         # Teks biasa / detail tanggal & telp
+                font_bold = ImageFont.truetype("arial.ttf", 52)    # Nama barang & angka rincian
+                font_title = ImageFont.truetype("arial.ttf", 54)   # Judul toko
             except:
                 font = ImageFont.load_default()
                 font_bold = ImageFont.load_default()
