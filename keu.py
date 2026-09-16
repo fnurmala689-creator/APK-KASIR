@@ -232,31 +232,5 @@ with tab1:
                 file_name=f"nota_{nama_pembeli}.png",
                 mime="image/png"
             )
-
-            img_final = img.crop((0, 0, canvas_width, y_offset + 10))
-
-            buf = io.BytesIO()
-            img_final.save(buf, format="PNG")
-            byte_im = buf.getvalue()
-            
-            base64_img = base64.b64encode(byte_im).decode('utf-8')
-            rawbt_url = f"rawbt:data:image/png;base64,{base64_img}"
-
-            st.success("Ukuran font dan layout berhasil disamakan persis dengan contoh!")
-
-            st.markdown(f"""
-                <div style="text-align: center; margin-top: 15px;">
-                    <a href="{rawbt_url}" target="_blank" style="background-color: #ff4b4b; color: white; padding: 12px 24px; text-decoration: none; font-size: 16px; border-radius: 6px; font-weight: bold; display: inline-block;">
-                        🖨️ Cetak Struk (Kirim ke RawBT)
-                    </a>
-                </div>
-            """, unsafe_allow_html=True)
-
-            st.download_button(
-                label="📥 Download Gambar Nota (.png)",
-                data=byte_im,
-                file_name=f"nota_{nama_pembeli}.png",
-                mime="image/png"
-            )
     else:
         st.info("Keranjang masih kosong. Silakan cari dan tambah barang di atas.")
