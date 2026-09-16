@@ -7,7 +7,7 @@ import io
 st.set_page_config(page_title="Aplikasi Keuangan & Kasir Toko Sembako", page_icon="🏪")
 
 st.title("🏪 Kalkulator HPP & Kasir Multi-Item Toko Sembako")
-st.markdown("Dilengkapi fitur pencarian nama barang, keranjang belanja, dan cetak nota PNG/Teks!")
+st.markdown("Dilengkapi fitur pencarian, keranjang belanja, cetak nota PNG, dan dukungan Printer Thermal!")
 
 # Inisialisasi Database Produk di session_state
 if "df_produk" not in st.session_state:
@@ -44,12 +44,10 @@ with tab2:
 with tab1:
     st.subheader("1. Cari & Tambah Barang ke Keranjang")
     
-    # --- FITUR PENCARIAN NAMA BARANG ---
     keyword_cari = st.text_input("🔍 Ketik nama barang yang dicari:", placeholder="Contoh: minyak, beras, gula...")
     
     df_produk_aktif = st.session_state.df_produk.copy()
     
-    # Filter tabel berdasarkan ketikan di kolom pencarian
     if keyword_cari:
         df_produk_aktif = df_produk_aktif[
             df_produk_aktif["Nama Barang"].str.contains(keyword_cari, case=False, na=False)
@@ -107,35 +105,99 @@ with tab1:
         if st.button("✨ Proses Nota Pembelian"):
             waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
-            detail_item_str = ""
+            # Membuat format HTML khusus struk thermal agar bisa langsung dicetak rapi
+            html_items = ""
             for item in st.session_state.keranjang:
-                detail_item_str += f"{item['Nama Barang']} \n   {item['Qty']} x Rp {item['Harga Satuan']:,.0f} = Rp {item['Subtotal']:,.0f}\n----------------------------------------\n"
+                html_items += f"""
+                <tr>
+                    <td colspan="2">{item['Nama Barang']}</td>
+                </tr>
+                <tr>
+                    <td>{item['Qty']} x {item['Harga Satuan']:,.0f}</td>
+                    <td style="text-align: right;">{item['Subtotal']:,.0f}</td>
+                </tr>
+                """
 
-            isi_struk = f"""========================================
-         TOKO SEMBAKO BERKAH
-   Jl. Raya Sembako No. 45, Jombang
-========================================
-Tanggal  : {waktu_sekarang}
-Pembeli  : {nama_pembeli}
-----------------------------------------
-{detail_item_str}TOTAL    : Rp {total_belanja_semua:,.0f}
-========================================
-    TERIMA KASIH TELAH BERBELANJA!
-========================================"""
+            struk_html = f"""
+            <html>
+                <head>
+                    <style>
+                        body {{
+                            font-family: 'Courier New', monospace;
+                            font-size: 12px;
+                            width: 280px;
+                            margin: 0 auto;
+                            padding: 10px;
+                        }}
+                        .center {{ text-align: center; }}
+                        .line {{ border-bottom: 1px dashed black; margin: 8px 0; }}
+                        table {{ width: 100%; border-collapse: collapse; }}
+                    </style>
+                </head>
+                <body>
+                    <div class="center">
+                        <b>TOKO SEMBAKO JABON</b><br>
+                        Desa Jabon, Jombang
+                    </div>
+                    <div class="line"></div>
+                    <div>
+                        Tgl : {waktu_sekarang}<br>
+                        Pelanggan : {nama_pembeli}
+                    </div>
+                    <div class="line"></div>
+                    <table>
+                        {html_items}
+                    </table>
+                    <div class="line"></div>
+                    <table>
+                        <tr>
+                            <td><b>TOTAL:</b></td>
+                            <td style="text-align: right;"><b>Rp {total_belanja_semua:,.0f}</b></td>
+                        </tr>
+                    </table>
+                    <div class="line"></div>
+                    <div class="center">
+                        TERIMA KASIH!<br>
+                        Barang yang sudah dibeli tidak dapat ditukar.
+                    </div>
+                </body>
+            </html>
+            """
 
             st.success("Nota berhasil dibuat!")
-            st.code(isi_struk, language="text")
 
-            # Tombol Download Teks (.txt)
-            st.download_button(
-                label="📥 Download Nota (Format Teks .txt)",
-                data=isi_struk,
-                file_name=f"nota_{nama_pembeli}.txt",
-                mime="text/plain"
-            )
+            # Tombol Cetak Langsung Thermal (Menggunakan JavaScript Print)
+            st.markdown("### 🖨️ Cetak ke Printer Thermal")
+            
+            # Kita bungkus HTML ke dalam iframe kecil yang punya tombol trigger print
+            st.components.v1.html(f"""
+                <div style="text-align: center;">
+                    <button onclick="printReceipt()" style="background-color: #ff4b4b; color: white; border: none; padding: 12px 20px; font-size: 16px; border-radius: 8px; cursor: pointer; font-weight: bold;">
+                        🖨️ Cetak Struk Sekarang
+                    </button>
+                </div>
+                <div id="print-area" style="display:none;">
+                    {struk_html}
+                </div>
+                <script>
+                    function printReceipt() {{
+                        var content = document.getElementById('print-area').innerHTML;
+                        var mywindow = window.open('', 'PRINT', 'height=600,width=300');
+                        mywindow.document.write('<html><head><title>Struk Nota</title>');
+                        mywindow.document.write('</head><body >');
+                        mywindow.document.write(content);
+                        mywindow.document.write('</body></html>');
+                        mywindow.document.close();
+                        mywindow.focus();
+                        mywindow.print();
+                        mywindow.close();
+                        return true;
+                    }}
+                </script>
+            """, height=80)
 
-            # --- MEMBUAT GAMBAR PNG ---
-            img_width, img_height = 450, 600 + (len(st.session_state.keranjang) * 40)
+            # --- MEMBUAT GAMBAR PNG (RATA TENGAH / CENTERED) UTK CADANGAN ---
+            img_width, img_height = 450, 650 + (len(st.session_state.keranjang) * 50)
             img = Image.new("RGB", (img_width, img_height), color=(255, 255, 255))
             draw = ImageDraw.Draw(img)
 
@@ -146,11 +208,17 @@ Pembeli  : {nama_pembeli}
                 font = ImageFont.load_default()
                 font_bold = font
 
-            y_offset = 20
+            def draw_center(y, text, f):
+                bbox = draw.textbbox((0, 0), text, font=f)
+                w = bbox[2] - bbox[0]
+                x = (img_width - w) / 2
+                draw.text((x, y), text, fill=(0, 0, 0), font=f)
+
+            y_offset = 25
             lines_to_draw = [
                 "========================================",
-                "         TOKO SEMBAKO BERKAH",
-                "   Jl. Raya Sembako No. 45, Jombang",
+                "TOKO SEMBAKO JABON",
+                "Desa Jabon, Jombang",
                 "========================================",
                 f"Tanggal  : {waktu_sekarang}",
                 f"Pembeli  : {nama_pembeli}",
@@ -158,35 +226,33 @@ Pembeli  : {nama_pembeli}
             ]
 
             for line in lines_to_draw:
-                draw.text((20, y_offset), line, fill=(0, 0, 0), font=font)
+                draw_center(y_offset, line, font)
                 y_offset += 25
 
             for item in st.session_state.keranjang:
                 t1 = f"{item['Nama Barang']}"
-                t2 = f"   {item['Qty']} x Rp {item['Harga Satuan']:,.0f} = Rp {item['Subtotal']:,.0f}"
-                draw.text((20, y_offset), t1, fill=(0, 0, 0), font=font)
+                t2 = f"{item['Qty']} x Rp {item['Harga Satuan']:,.0f} = Rp {item['Subtotal']:,.0f}"
+                draw_center(y_offset, t1, font)
                 y_offset += 22
-                draw.text((20, y_offset), t2, fill=(0, 0, 0), font=font)
+                draw_center(y_offset, t2, font)
                 y_offset += 25
-                draw.text((20, y_offset), "----------------------------------------", fill=(0, 0, 0), font=font)
+                draw_center(y_offset, "----------------------------------------", font)
                 y_offset += 25
 
             footer_lines = [
                 f"TOTAL    : Rp {total_belanja_semua:,.0f}",
                 "========================================",
-                "    TERIMA KASIH TELAH BERBELANJA!",
-                "========================================",
+                "TERIMA KASIH TELAH BERBELANJA!",
+                "========================================"
             ]
 
             for line in footer_lines:
-                draw.text((20, y_offset), line, fill=(0, 0, 0), font=font)
+                draw_center(y_offset, line, font)
                 y_offset += 25
 
             buf = io.BytesIO()
             img.save(buf, format="PNG")
             byte_im = buf.getvalue()
-
-            st.image(byte_im, caption="Pratinjau Nota Gambar PNG", use_container_width=False)
 
             st.download_button(
                 label="🖼️ Download Nota (Format Gambar .png)",
