@@ -114,9 +114,9 @@ with tab1:
             draw = ImageDraw.Draw(img)
 
             try:
-                font = ImageFont.truetype("arial.ttf", 60)
-                font_bold = ImageFont.truetype("arial.ttf", 60)
-                font_title = ImageFont.truetype("arial.ttf", 60)
+                font = ImageFont.truetype("arial.ttf", 130)
+                font_bold = ImageFont.truetype("arial.ttf",130)
+                font_title = ImageFont.truetype("arial.ttf", 130)
             except:
                 font = ImageFont.load_default()
                 font_bold = ImageFont.load_default()
