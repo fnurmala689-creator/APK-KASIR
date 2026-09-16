@@ -238,11 +238,11 @@ with tab1:
 
                 # Menyesuaikan ukuran agar presisi dengan cetakan thermal kasir
 
-                font = ImageFont.truetype("arial.ttf", 60)         # Teks biasa / detail tanggal & telp
+                font = ImageFont.truetype("arial.ttf", 70)         # Teks biasa / detail tanggal & telp
 
-                font_bold = ImageFont.truetype("arial.ttf", 62)    # Nama barang & angka rincian
+                font_bold = ImageFont.truetype("arial.ttf", 72)    # Nama barang & angka rincian
 
-                font_title = ImageFont.truetype("arial.ttf", 64)   # Judul toko
+                font_title = ImageFont.truetype("arial.ttf", 74)   # Judul toko
 
             except:
 
