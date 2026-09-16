@@ -103,68 +103,69 @@ with tab1:
         if st.button("✨ Proses Nota Pembelian"):
             waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            # --- MEMBUAT GAMBAR STRUK (FONT LEBIH BESAR & RATA KIRI) ---
-            img_width = 450
-            img_height = 550 + (len(st.session_state.keranjang) * 75)
-            img = Image.new("RGB", (img_width, img_height), color=(255, 255, 255))
+            # --- MEMBUAT GAMBAR STRUK DENGAN MARGIN/JARAK RENGGANG ---
+            canvas_width = 450
+            margin_side = 30  # Jarak kiri dan kanan
+            content_width = canvas_width - (2 * margin_side)
+            
+            # Hitung perkiraan tinggi gambar
+            estimated_height = 800 + (len(st.session_state.keranjang) * 110)
+            img = Image.new("RGB", (canvas_width, estimated_height), color=(255, 255, 255))
             draw = ImageDraw.Draw(img)
 
-            # Memakai ukuran font 24 agar sangat jelas terbaca di kertas thermal 58mm
             try:
-                font = ImageFont.truetype("arial.ttf", 24)
-                font_bold = ImageFont.truetype("arial.ttf", 26)
+                font = ImageFont.truetype("arial.ttf", 30)
+                font_bold = ImageFont.truetype("arial.ttf", 34)
+                font_title = ImageFont.truetype("arial.ttf", 38)
             except:
                 font = ImageFont.load_default()
                 font_bold = ImageFont.load_default()
+                font_title = ImageFont.load_default()
 
             def draw_center(y, text, f):
                 bbox = draw.textbbox((0, 0), text, font=f)
                 w = bbox[2] - bbox[0]
-                x = (img_width - w) / 2
+                x = (canvas_width - w) / 2
                 draw.text((x, y), text, fill=(0, 0, 0), font=f)
 
-            margin_left = 30
-            y_offset = 30
+            y_offset = 40  # Margin atas awal
 
             # Header (Rata Tengah)
-            draw_center(y_offset, "TOKO JABON KIDUL SEPUR", font_bold)
-            y_offset += 32
+            draw_center(y_offset, "TOKO JABON KIDUL SEPUR", font_title)
+            y_offset += 50
             draw_center(y_offset, "Desa Jabon - Jombang", font)
-            y_offset += 32
+            y_offset += 50
 
-            # Info Transaksi (Rata Kiri)
-            draw.text((margin_left, y_offset), f"Tanggal : {waktu_sekarang}", fill=(0, 0, 0), font=font)
-            y_offset += 32
-            draw.text((margin_left, y_offset), f"Pembeli : {nama_pembeli}", fill=(0, 0, 0), font=font)
-            y_offset += 32
-            draw_center(y_offset, "--------------------------------", font)
-            y_offset += 35
+            # Info Transaksi (Rata Kiri dengan Margin Samping)
+            draw.text((margin_side, y_offset), f"Tanggal : {waktu_sekarang}", fill=(0, 0, 0), font=font)
+            y_offset += 42
+            draw.text((margin_side, y_offset), f"Pembeli : {nama_pembeli}", fill=(0, 0, 0), font=font)
+            y_offset += 45
+            draw_center(y_offset, "----------------------------------------", font)
+            y_offset += 50
 
-            # Daftar Barang (Rata Kiri)
+            # Daftar Barang (Rata Kiri dengan Margin Samping)
             for item in st.session_state.keranjang:
-                # Nama barang rata kiri
-                draw.text((margin_left, y_offset), f"- {item['Nama Barang']}", fill=(0, 0, 0), font=font_bold)
-                y_offset += 32
+                draw.text((margin_side, y_offset), f"- {item['Nama Barang']}", fill=(0, 0, 0), font=font_bold)
+                y_offset += 44
                 
-                # Detail Qty x Harga = Subtotal (agar menjorok ke kanan sedikit atau pas di bawahnya)
                 detail_hrg = f"  {item['Qty']} x {item['Harga Satuan']:,.0f} = {item['Subtotal']:,.0f}"
-                draw.text((margin_left, y_offset), detail_hrg, fill=(0, 0, 0), font=font)
-                y_offset += 38
+                draw.text((margin_side, y_offset), detail_hrg, fill=(0, 0, 0), font=font)
+                y_offset += 52
 
-            draw_center(y_offset, "--------------------------------", font)
-            y_offset += 35
+            draw_center(y_offset, "----------------------------------------", font)
+            y_offset += 50
 
             # Total & Footer (Rata Tengah / Menonjol)
             total_text = f"TOTAL: Rp {total_belanja_semua:,.0f}"
-            draw_center(y_offset, total_text, font_bold)
-            y_offset += 40
+            draw_center(y_offset, total_text, font_title)
+            y_offset += 60
             
+            draw_center(y_offset, "TERIMA KASIH TELAH BERBELANJA!", font_bold)
+            y_offset += 50
 
-            draw_center(y_offset, "TERIMA KASIH TELAH BERBELANJA!", font)
-            y_offset += 32
-
-            # Crop gambar sesuai tinggi konten agar tidak ada sisa putih panjang di bawah
-            img_final = img.crop((0, 0, img_width, y_offset + 50))
+            # Crop gambar sesuai tinggi konten asli ditambah margin bawah
+            img_final = img.crop((0, 0, canvas_width, y_offset + 20))
 
             buf = io.BytesIO()
             img_final.save(buf, format="PNG")
@@ -174,7 +175,7 @@ with tab1:
             base64_img = base64.b64encode(byte_im).decode('utf-8')
             rawbt_url = f"rawbt:data:image/png;base64,{base64_img}"
 
-            st.success("Nota berhasil dibuat dengan ukuran font baru!")
+            st.success("Nota berhasil dibuat dengan margin yang rapi!")
 
             # Tombol Cetak Gambar Langsung via RawBT
             st.markdown(f"""
