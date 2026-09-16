@@ -8,7 +8,7 @@ import base64
 st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 
 st.title("🏪 Kasir Toko Sembako")
-st.markdown("Aplikasi Kasir Praktis & Cetak Gambar via RawBT")
+st.markdown("Aplikasi Kasir Praktis & Cetak Gambar via RawBT (Thermal 58mm)")
 
 # Inisialisasi Database Produk
 if "df_produk" not in st.session_state:
@@ -90,32 +90,38 @@ with tab1:
         total_belanja_semua = df_keranjang["Subtotal"].sum()
         st.metric(label="TOTAL YANG HARUS DIBAYAR", value=f"Rp {total_belanja_semua:,.0f}")
 
-        col_aksi1, col_aksi2 = st.columns(2)
+        col_aksi1, col_aksi2, col_aksi3 = st.columns(3)
         with col_aksi1:
             nama_pembeli = st.text_input("Nama Pelanggan", value="Pelanggan Umum")
         with col_aksi2:
+            uang_tunai = st.number_input("Uang Tunai (Rp)", min_value=0, value=int(total_belanja_semua), step=5000)
+        with col_aksi3:
             st.write("")
             st.write("")
             if st.button("🗑️ Kosongkan Keranjang"):
                 st.session_state.keranjang = []
                 st.rerun()
 
+        uang_kembalian = uang_tunai - total_belanja_semua
+
         if st.button("✨ Proses Nota Pembelian"):
             waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            # --- PENGATURAN KANVAS & FONT BESAR ---
-            canvas_width = 600  # Dilebarkan agar muat font besar
-            margin_left = 40  
+            # --- PENGATURAN KANVAS & FONT STANDAR THERMAL 58MM ---
+            canvas_width = 384  # Lebar standar mutlak kertas thermal 58mm
+            margin_left = 15  
+            margin_right = 15
+            max_text_width = canvas_width - (margin_left + margin_right)
             
-            estimated_height = 1000 + (len(st.session_state.keranjang) * 130)
+            estimated_height = 800 + (len(st.session_state.keranjang) * 90)
             img = Image.new("RGB", (canvas_width, estimated_height), color=(255, 255, 255))
             draw = ImageDraw.Draw(img)
 
             try:
-                # Ukuran font besar yang pas untuk kertas thermal lebar 600px
-                font = ImageFont.truetype("arial.ttf", 34)
-                font_bold = ImageFont.truetype("arial.ttf", 38)
-                font_title = ImageFont.truetype("arial.ttf", 46)
+                # Ukuran font disesuaikan agar mirip persis dengan contoh nota 58mm
+                font = ImageFont.truetype("arial.ttf", 18)
+                font_bold = ImageFont.truetype("arial.ttf", 18)
+                font_title = ImageFont.truetype("arial.ttf", 22)
             except:
                 font = ImageFont.load_default()
                 font_bold = ImageFont.load_default()
@@ -127,47 +133,71 @@ with tab1:
                 x = (canvas_width - w) / 2
                 draw.text((x, y), text, fill=(0, 0, 0), font=f)
 
-            y_offset = 40  
+            y_offset = 20  
 
-            # Header (Rata Tengah)
+            # Header Toko (Rata Tengah)
             draw_center(y_offset, "TOKO JABON KIDUL SEPUR", font_title)
-            y_offset += 60
+            y_offset += 28
             draw_center(y_offset, "Desa Jabon - Jombang", font)
-            y_offset += 48
+            y_offset += 24
             draw_center(y_offset, "Tel. 0857 3395 8305", font)
-            y_offset += 55
-            draw_center(y_offset, "==================================================", font)
-            y_offset += 55
+            y_offset += 26
+            draw_center(y_offset, "-----------------------------------------------------------------", font)
+            y_offset += 26
 
             # Info Transaksi (Rata Kiri)
-            draw.text((margin_left, y_offset), f"Tanggal : {waktu_sekarang}", fill=(0, 0, 0), font=font)
-            y_offset += 48
-            draw.text((margin_left, y_offset), f"Pembeli : {nama_pembeli}", fill=(0, 0, 0), font=font)
-            y_offset += 55
-            draw_center(y_offset, "--------------------------------------------------", font)
-            y_offset += 55
+            draw.text((margin_left, y_offset), f"Tgl : {waktu_sekarang}", fill=(0, 0, 0), font=font)
+            y_offset += 22
+            draw.text((margin_left, y_offset), f"Plg : {nama_pembeli}", fill=(0, 0, 0), font=font)
+            y_offset += 26
+            draw_center(y_offset, "-----------------------------------------------------------------", font)
+            y_offset += 26
 
-            # Daftar Barang (Rata Kiri)
+            # Daftar Barang (Format Nama di Atas, Detail Qty x Harga di Bawah Rata Kanan/Kiri)
             for item in st.session_state.keranjang:
-                draw.text((margin_left, y_offset), f"- {item['Nama Barang']}", fill=(0, 0, 0), font=font_bold)
-                y_offset += 52
+                draw.text((margin_left, y_offset), f"{item['Nama Barang']}", fill=(0, 0, 0), font=font_bold)
+                y_offset += 22
                 
-                detail_hrg = f"  {item['Qty']} x {item['Harga Satuan']:,.0f} = {item['Subtotal']:,.0f}"
-                draw.text((margin_left, y_offset), detail_hrg, fill=(0, 0, 0), font=font)
-                y_offset += 65
+                detail_kiri = f"  {item['Qty']} x {item['Harga Satuan']:,.0f}"
+                detail_kanan = f"{item['Subtotal']:,.0f}"
+                
+                draw.text((margin_left, y_offset), detail_kiri, fill=(0, 0, 0), font=font)
+                
+                # Hitung posisi teks kanan agar rapi di ujung kanan kertas
+                bbox_kanan = draw.textbbox((0, 0), detail_kanan, font=font)
+                w_kanan = bbox_kanan[2] - bbox_kanan[0]
+                x_kanan = canvas_width - margin_right - w_kanan
+                draw.text((x_kanan, y_offset), detail_kanan, fill=(0, 0, 0), font=font)
+                y_offset += 28
 
-            draw_center(y_offset, "--------------------------------------------------", font)
-            y_offset += 55
+            draw_center(y_offset, "-----------------------------------------------------------------", font)
+            y_offset += 26
 
-            # Total & Footer
-            total_text = f"TOTAL: Rp {total_belanja_semua:,.0f}"
-            draw_center(y_offset, total_text, font_title)
-            y_offset += 70
-            
-            draw_center(y_offset, "TERIMA KASIH TELAH BERBELANJA!", font_bold)
-            y_offset += 55
+            # Total, Tunai, Kembalian (Format Sejajar Kiri-Kanan)
+            items_ringkasan = [
+                ("Total", f"{total_belanja_semua:,.0f}"),
+                ("Tunai", f"{uang_tunai:,.0f}"),
+                ("Kembalian", f"{uang_kembalian:,.0f}")
+            ]
 
-            img_final = img.crop((0, 0, canvas_width, y_offset + 30))
+            for label_txt, nilai_txt in items_ringkasan:
+                draw.text((margin_left, y_offset), label_txt, fill=(0, 0, 0), font=font_bold if label_txt == "Total" else font)
+                
+                bbox_val = draw.textbbox((0, 0), nilai_txt, font=font_bold if label_txt == "Total" else font)
+                w_val = bbox_val[2] - bbox_val[0]
+                x_val = canvas_width - margin_right - w_val
+                
+                draw.text((x_val, y_offset), nilai_txt, fill=(0, 0, 0), font=font_bold if label_txt == "Total" else font)
+                y_offset += 26
+
+            draw_center(y_offset, "-----------------------------------------------------------------", font)
+            y_offset += 30
+
+            # Footer
+            draw_center(y_offset, "Terima Kasih Telah Berbelanja", font)
+            y_offset += 35
+
+            img_final = img.crop((0, 0, canvas_width, y_offset + 10))
 
             buf = io.BytesIO()
             img_final.save(buf, format="PNG")
@@ -176,7 +206,7 @@ with tab1:
             base64_img = base64.b64encode(byte_im).decode('utf-8')
             rawbt_url = f"rawbt:data:image/png;base64,{base64_img}"
 
-            st.success("Nota berhasil dibuat dengan ukuran font besar dan jelas!")
+            st.success("Nota 58mm berhasil dibuat sesuai standar contoh!")
 
             st.markdown(f"""
                 <div style="text-align: center; margin-top: 15px;">
