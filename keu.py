@@ -118,9 +118,9 @@ with tab1:
 
             try:
                 # Menyesuaikan ukuran agar presisi dengan cetakan thermal kasir
-                font = ImageFont.truetype("arial.ttf", 50)         # Teks biasa / detail tanggal & telp
-                font_bold = ImageFont.truetype("arial.ttf", 52)    # Nama barang & angka rincian
-                font_title = ImageFont.truetype("arial.ttf", 54)   # Judul toko
+                font = ImageFont.truetype("arial.ttf", 90)         # Teks biasa / detail tanggal & telp
+                font_bold = ImageFont.truetype("arial.ttf", 92)    # Nama barang & angka rincian
+                font_title = ImageFont.truetype("arial.ttf", 94)   # Judul toko
             except:
                 font = ImageFont.load_default()
                 font_bold = ImageFont.load_default()
@@ -136,26 +136,26 @@ with tab1:
 
             # Header Toko (Rata Tengah)
             draw_center(y_offset, "TOKO JABON KIDUL SEPUR", font_title)
-            y_offset += 5
+            y_offset += 15
             draw_center(y_offset, "Jabon - Jombang", font)
-            y_offset += 5
+            y_offset += 15
             draw_center(y_offset, "Tel. 0857 3395 8305", font)
-            y_offset += 5
+            y_offset += 15
             draw_center(y_offset, "----------------------------------------------------------------", font)
-            y_offset += 5
+            y_offset += 18
 
             # Info Transaksi (Rata Kiri)
             draw.text((margin_left, y_offset), f"Tgl : {waktu_sekarang}", fill=(0, 0, 0), font=font)
-            y_offset += 5
+            y_offset += 15
             draw.text((margin_left, y_offset), f"Pelanggan: {nama_pembeli}", fill=(0, 0, 0), font=font)
-            y_offset += 5
+            y_offset += 15
             draw_center(y_offset, "----------------------------------------------------------------", font)
-            y_offset += 5
+            y_offset += 18
 
             # Daftar Barang (Format persis contoh: Nama barang di atas, Harga x Qty di kiri & Subtotal di kanan)
             for item in st.session_state.keranjang:
                 draw.text((margin_left, y_offset), f"{item['Nama Barang']}", fill=(0, 0, 0), font=font_bold)
-                y_offset += 5
+                y_offset += 15
                 
                 detail_kiri = f"{item['Harga Satuan']:,.0f} x {item['Qty']} item".replace(',', '.')
                 detail_kanan = f"{item['Subtotal']:,.0f}".replace(',', '.')
@@ -166,10 +166,10 @@ with tab1:
                 w_kanan = bbox_kanan[2] - bbox_kanan[0]
                 x_kanan = canvas_width - margin_right - w_kanan
                 draw.text((x_kanan, y_offset), detail_kanan, fill=(0, 0, 0), font=font)
-                y_offset += 5
+                y_offset += 18
 
             draw_center(y_offset, "----------------------------------------------------------------", font)
-            y_offset += 5
+            y_offset += 18
 
             # Ringkasan Total, Tunai, Kembalian (Format Sejajar Kiri-Kanan)
             items_ringkasan = [
@@ -186,9 +186,9 @@ with tab1:
                     w_val = bbox_val[2] - bbox_val[0]
                     x_val = canvas_width - margin_right - w_val
                     draw.text((x_val, y_offset), nilai_txt, fill=(0, 0, 0), font=font)
-                    y_offset += 5
+                    y_offset += 15
                     draw_center(y_offset, "----------------------------------------------------------------", font)
-                    y_offset += 5
+                    y_offset += 18
                 else:
                     is_bold = label_txt == "Total"
                     f_used = font_bold if is_bold else font
@@ -198,14 +198,14 @@ with tab1:
                     w_val = bbox_val[2] - bbox_val[0]
                     x_val = canvas_width - margin_right - w_val
                     draw.text((x_val, y_offset), nilai_txt, fill=(0, 0, 0), font=f_used)
-                    y_offset += 5
+                    y_offset += 15
 
             draw_center(y_offset, "----------------------------------------------------------------", font)
-            y_offset += 5
+            y_offset += 18
 
             # Footer
             draw_center(y_offset, "Terima Kasih", font_bold)
-            y_offset += 10
+            y_offset += 15
 
             img_final = img.crop((0, 0, canvas_width, y_offset + 10))
 
