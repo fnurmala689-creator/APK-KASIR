@@ -1,14 +1,14 @@
 ﻿import streamlit as st
 import pandas as pd
 from datetime import datetime
-import io
+import urllib.parse
 
 st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 
 st.title("🏪 Kasir Toko Sembako")
-st.markdown("Aplikasi Kasir Praktis & Cetak Struk Thermal 58mm")
+st.markdown("Aplikasi Kasir Praktis & Cetak Otomatis via RawBT")
 
-# Inisialisasi Database Produk di session_state
+# Inisialisasi Database Produk
 if "df_produk" not in st.session_state:
     st.session_state.df_produk = pd.DataFrame({
         "Nama Barang": [
@@ -101,93 +101,39 @@ with tab1:
         if st.button("✨ Proses Nota Pembelian"):
             waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             
-            # Format HTML struk khusus ukuran thermal 58mm (~200px)
-            html_items = ""
+            # Susun teks struk khusus printer thermal 58mm (lebar ~32 karakter)
+            teks_struk = "================================\n"
+            teks_struk += "       TOKO SEMBAKO BERKAH     \n"
+            teks_struk += "     Jl. Raya Sembako Jombang   \n"
+            teks_struk += "================================\n"
+            teks_struk += f"Tgl : {waktu_sekarang}\n"
+            teks_struk += f"Pelanggan : {nama_pembeli}\n"
+            teks_struk += "--------------------------------\n"
+            
             for item in st.session_state.keranjang:
-                html_items += f"""
-                <tr>
-                    <td colspan="2"><b>{item['Nama Barang']}</b></td>
-                </tr>
-                <tr>
-                    <td>{item['Qty']} x {item['Harga Satuan']:,.0f}</td>
-                    <td style="text-align: right;">{item['Subtotal']:,.0f}</td>
-                </tr>
-                """
+                teks_struk += f"{item['Nama Barang']}\n"
+                teks_struk += f"  {item['Qty']} x {item['Harga Satuan']:,.0f} = {item['Subtotal']:,.0f}\n"
+                
+            teks_struk += "--------------------------------\n"
+            teks_struk += f"TOTAL: Rp {total_belanja_semua:,.0f}\n"
+            teks_struk += "================================\n"
+            teks_struk += "   TERIMA KASIH TELAH BELANJA   \n"
+            teks_struk += "================================\n\n\n"
 
-            struk_html = f"""
-            <html>
-                <head>
-                    <style>
-                        body {{
-                            font-family: 'Courier New', monospace;
-                            font-size: 11px;
-                            width: 200px;
-                            margin: 0 auto;
-                            padding: 5px;
-                        }}
-                        .center {{ text-align: center; }}
-                        .line {{ border-bottom: 1px dashed black; margin: 5px 0; }}
-                        table {{ width: 100%; border-collapse: collapse; }}
-                    </style>
-                </head>
-                <body>
-                    <div class="center">
-                        <b>TOKO SEMBAKO BERKAH</b><br>
-                        Jombang
-                    </div>
-                    <div class="line"></div>
-                    <div>
-                        Tgl : {waktu_sekarang}<br>
-                        Pelanggan : {nama_pembeli}
-                    </div>
-                    <div class="line"></div>
-                    <table>
-                        {html_items}
-                    </table>
-                    <div class="line"></div>
-                    <table>
-                        <tr>
-                            <td><b>TOTAL:</b></td>
-                            <td style="text-align: right;"><b>Rp {total_belanja_semua:,.0f}</b></td>
-                        </tr>
-                    </table>
-                    <div class="line"></div>
-                    <div class="center">
-                        TERIMA KASIH!<br>
-                        Barang laku tidak ditukar.
-                    </div>
-                </body>
-            </html>
-            """
+            st.success("Nota berhasil dibuat! Silakan klik tombol cetak di bawah.")
 
-            st.success("Nota berhasil dibuat!")
+            # Encode teks agar aman dikirim ke URL RawBT
+            encoded_text = urllib.parse.quote(teks_struk)
+            rawbt_url = f"rawbt:data:text/plain;charset=utf-8,{encoded_text}"
 
-            # Tombol Cetak Instan Langsung ke Printer Thermal
-            st.markdown("### 🖨️ Cetak Struk")
-            st.components.v1.html(f"""
-                <div style="text-align: center;">
-                    <button onclick="printReceipt()" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 18px; font-size: 14px; border-radius: 6px; cursor: pointer; font-weight: bold;">
-                        🖨️ Cetak Struk Sekarang
-                    </button>
+            # Tombol Cetak langsung memicu aplikasi RawBT
+            st.markdown(f"""
+                <div style="text-align: center; margin-top: 15px;">
+                    <a href="{rawbt_url}" target="_blank" style="background-color: #ff4b4b; color: white; padding: 12px 24px; text-decoration: none; font-size: 16px; border-radius: 6px; font-weight: bold; display: inline-block;">
+                        🖨️ Cetak Langsung via RawBT
+                    </a>
                 </div>
-                <div id="print-area" style="display:none;">
-                    {struk_html}
-                </div>
-                <script>
-                    function printReceipt() {{
-                        var content = document.getElementById('print-area').innerHTML;
-                        var mywindow = window.open('', 'PRINT', 'height=500,width=280');
-                        mywindow.document.write('<html><head><title>Struk</title></head><body>');
-                        mywindow.document.write(content);
-                        mywindow.document.write('</body></html>');
-                        mywindow.document.close();
-                        mywindow.focus();
-                        mywindow.print();
-                        mywindow.close();
-                        return true;
-                    }}
-                </script>
-            """, height=70)
+            """, unsafe_allow_html=True)
             
     else:
         st.info("Keranjang masih kosong. Silakan cari dan tambah barang di atas.")
