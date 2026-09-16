@@ -119,9 +119,9 @@ with tab1:
 
             try:
                 # Ukuran font disesuaikan agar mirip persis dengan contoh nota 58mm
-                font = ImageFont.truetype("arial.ttf", 80)
-                font_bold = ImageFont.truetype("arial.ttf", 80)
-                font_title = ImageFont.truetype("arial.ttf", 85)
+                font = ImageFont.truetype("arial.ttf", 95)
+                font_bold = ImageFont.truetype("arial.ttf", 95)
+                font_title = ImageFont.truetype("arial.ttf", 100)
             except:
                 font = ImageFont.load_default()
                 font_bold = ImageFont.load_default()
