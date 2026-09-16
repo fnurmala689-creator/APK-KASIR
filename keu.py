@@ -160,7 +160,7 @@ with tab1:
             encoded_text = urllib.parse.quote(teks_nota)
             rawbt_url = f"rawbt:data:text/plain;charset=utf-8,{encoded_text}"
 
-            st.success("Nota teks berhasil dibuat! Silหาคม cetak melalui tombol di bawah.")
+            st.success("Nota teks berhasil dibuat! Silahkan cetak melalui tombol di bawah.")
 
             # Tombol Cetak Teks via RawBT
             st.markdown(f"""
