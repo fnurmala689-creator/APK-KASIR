@@ -108,7 +108,7 @@ with tab1:
             waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             # --- PENGATURAN KANVAS & FONT PAS PERSIS CONTOH (58MM) ---
-            canvas_width = 576  # Lebar standar mutlak printer thermal 58mm
+            canvas_width = 192  # Lebar standar mutlak printer thermal 58mm
             margin_left = 15  
             margin_right = 15
             
