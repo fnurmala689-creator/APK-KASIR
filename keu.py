@@ -109,8 +109,8 @@ with tab1:
 
             # --- PENGATURAN KANVAS & FONT PAS PERSIS CONTOH (58MM) ---
             canvas_width = 192  # Lebar standar mutlak printer thermal 58mm
-            margin_left = 15  
-            margin_right = 15
+            margin_left = 5  
+            margin_right = 5
             
             estimated_height = 1000 + (len(st.session_state.keranjang) * 120)
             img = Image.new("RGB", (canvas_width, estimated_height), color=(255, 255, 255))
@@ -118,9 +118,9 @@ with tab1:
 
             try:
                 # Menyesuaikan ukuran agar presisi dengan cetakan thermal kasir
-                font = ImageFont.truetype("arial.ttf", 50)         # Teks biasa / detail tanggal & telp
-                font_bold = ImageFont.truetype("arial.ttf", 52)    # Nama barang & angka rincian
-                font_title = ImageFont.truetype("arial.ttf", 54)   # Judul toko
+                font = ImageFont.truetype("arial.ttf", 60)         # Teks biasa / detail tanggal & telp
+                font_bold = ImageFont.truetype("arial.ttf", 62)    # Nama barang & angka rincian
+                font_title = ImageFont.truetype("arial.ttf", 64)   # Judul toko
             except:
                 font = ImageFont.load_default()
                 font_bold = ImageFont.load_default()
