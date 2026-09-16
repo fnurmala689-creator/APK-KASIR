@@ -104,7 +104,7 @@ with tab1:
 
         uang_kembalian = uang_tunai - total_belanja_semua
 
-        if if st.button("✨ Proses Nota Pembelian"):
+        if st.button("✨ Proses Nota Pembelian"):
             waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
             # --- PENGATURAN KANVAS & FONT PAS PERSIS CONTOH (58MM) ---
