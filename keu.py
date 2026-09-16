@@ -103,16 +103,14 @@ with tab1:
         if st.button("✨ Proses Nota Pembelian"):
             waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-            # --- MEMBUAT GAMBAR STRUK (FORMAT AWAL, FONT BESAR & MARGIN RENGGANG) ---
+            # --- MEMBUAT GAMBAR STRUK ---
             canvas_width = 450
-            margin_left = 30  # Margin kiri kanan yang pas dan renggang
+            margin_left = 30  
             
-            # Hitung perkiraan tinggi gambar dengan font besar
             estimated_height = 800 + (len(st.session_state.keranjang) * 110)
             img = Image.new("RGB", (canvas_width, estimated_height), color=(255, 255, 255))
             draw = ImageDraw.Draw(img)
 
-            # Ukuran font besar (28, 32, 38) agar jelas terbaca
             try:
                 font = ImageFont.truetype("arial.ttf", 28)
                 font_bold = ImageFont.truetype("arial.ttf", 32)
@@ -128,15 +126,15 @@ with tab1:
                 x = (canvas_width - w) / 2
                 draw.text((x, y), text, fill=(0, 0, 0), font=f)
 
-            y_offset = 35  # Margin atas
+            y_offset = 35  
 
-            # Header (Rata Tengah)
+            # Header (Rata Tengah dengan Nomor Telepon)
             draw_center(y_offset, "TOKO JABON KIDUL SEPUR", font_title)
-            y_offset += 50
+            y_offset += 48
             draw_center(y_offset, "Desa Jabon - Jombang", font)
-            y_offset += 45
-	    draw_center(y_offset, "0857 3395 8305", font)
-            y_offset += 45
+            y_offset += 38
+            draw_center(y_offset, "Tel. 0857 3395 8305", font)
+            y_offset += 42
             draw_center(y_offset, "========================================", font)
             y_offset += 45
 
@@ -148,7 +146,7 @@ with tab1:
             draw_center(y_offset, "----------------------------------------", font)
             y_offset += 45
 
-            # Daftar Barang (Rata Kiri, Format Asal dengan Font Besar)
+            # Daftar Barang (Rata Kiri)
             for item in st.session_state.keranjang:
                 draw.text((margin_left, y_offset), f"- {item['Nama Barang']}", fill=(0, 0, 0), font=font_bold)
                 y_offset += 42
@@ -160,7 +158,7 @@ with tab1:
             draw_center(y_offset, "----------------------------------------", font)
             y_offset += 45
 
-            # Total & Footer (Rata Tengah / Menonjol)
+            # Total & Footer
             total_text = f"TOTAL: Rp {total_belanja_semua:,.0f}"
             draw_center(y_offset, total_text, font_title)
             y_offset += 55
@@ -168,20 +166,17 @@ with tab1:
             draw_center(y_offset, "TERIMA KASIH & SEMOGA BERKAH!", font_bold)
             y_offset += 45
 
-            # Crop gambar sesuai tinggi konten asli ditambah margin bawah
             img_final = img.crop((0, 0, canvas_width, y_offset + 30))
 
             buf = io.BytesIO()
             img_final.save(buf, format="PNG")
             byte_im = buf.getvalue()
             
-            # Konversi gambar ke Base64 untuk dikirim ke RawBT
             base64_img = base64.b64encode(byte_im).decode('utf-8')
             rawbt_url = f"rawbt:data:image/png;base64,{base64_img}"
 
-            st.success("Nota berhasil dibuat dengan font besar dan format yang pas!")
+            st.success("Nota berhasil dibua!")
 
-            # Tombol Cetak Gambar Langsung via RawBT
             st.markdown(f"""
                 <div style="text-align: center; margin-top: 15px;">
                     <a href="{rawbt_url}" target="_blank" style="background-color: #ff4b4b; color: white; padding: 12px 24px; text-decoration: none; font-size: 16px; border-radius: 6px; font-weight: bold; display: inline-block;">
@@ -190,7 +185,6 @@ with tab1:
                 </div>
             """, unsafe_allow_html=True)
 
-            # Cadangan tombol download manual
             st.download_button(
                 label="📥 Download Gambar Nota (.png)",
                 data=byte_im,
