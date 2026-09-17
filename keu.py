@@ -6,7 +6,7 @@ import urllib.parse
 st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 
 st.title("🏪 Kasir Toko Sembako (ESC/POS RawBT)")
-st.markdown("Aplikasi Kasir dengan Pratinjau Nota, Cetak ESC/POS & WhatsApp")
+st.markdown("Aplikasi Kasir dengan Pratinjau Berjarak, Cetak ESC/POS & WhatsApp")
 
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
@@ -114,7 +114,7 @@ with tab1:
         waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         printer_width = 32  # Lebar standar karakter printer thermal 58mm
 
-        # --- PENYUSUNAN STRUK TEKS UNTUK PREVIEW ---
+        # --- PENYUSUNAN STRUK TEKS UNTUK PREVIEW (DENGAN TAMBAHAN JARAK) ---
         lines_preview = []
         lines_preview.append("TOKO JABON KIDUL SEPUR")
         lines_preview.append("Jabon - Jombang")
@@ -131,6 +131,7 @@ with tab1:
             detail_kiri = f"{harga_str} x {item['Qty']} item"
             space_len = printer_width - (len(detail_kiri) + len(sub_str))
             lines_preview.append(detail_kiri + (" " * max(1, space_len)) + sub_str)
+            lines_preview.append("") # <--- Tambahan baris kosong antar barang di nota fisik/preview
 
         lines_preview.append("-" * printer_width)
         
@@ -162,7 +163,7 @@ with tab1:
 
         st.write("")
 
-        # --- PEMBUATAN BYTE ESC/POS UNTUK RAWBT ---
+        # --- PEMBUATAN BYTE ESC/POS UNTUK RAWBT (DENGAN TAMBAHAN JARAK) ---
         INIT = b'\x1b\x40'
         ALIGN_CENTER = b'\x1b\x61\x01'
         ALIGN_LEFT = b'\x1b\x61\x00'
@@ -197,6 +198,7 @@ with tab1:
             space_len = printer_width - (len(detail_kiri) + len(sub_str))
             baris_item = detail_kiri + (" " * max(1, space_len)) + sub_str
             add_line(baris_item, ALIGN_LEFT)
+            add_line("") # <--- Tambahan baris kosong di printer fisik
 
         add_line("-" * printer_width, ALIGN_CENTER)
 
@@ -215,14 +217,14 @@ with tab1:
         add_line("\n\n")
         raw_bytes.extend(CUT_PAPER)
 
-        # --- BUAT LINK WHATSAPP ---
+        # --- BUAT LINK WHATSAPP (DENGAN TAMBAHAN JARAK) ---
         pesan_wa = f"*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n" \
                    f"----------------------------------\n" \
                    f"Tgl : {waktu_sekarang}\n" \
                    f"Plg : {nama_pembeli} ({jenis_pelanggan})\n" \
                    f"----------------------------------\n"
         for item in st.session_state.keranjang:
-            pesan_wa += f"• {item['Nama Barang']}\n  {item['Harga Satuan']:,.0f} x {item['Qty']} = *Rp {item['Subtotal']:,.0f}*\n".replace(',', '.')
+            pesan_wa += f"• {item['Nama Barang']}\n  {item['Harga Satuan']:,.0f} x {item['Qty']} = *Rp {item['Subtotal']:,.0f}*\n\n".replace(',', '.') # <--- Tambahan \n di WhatsApp
         pesan_wa += f"----------------------------------\n" \
                     f"Total    : *Rp {total_belanja_semua:,.0f}*\n" \
                     f"Tunai    : Rp {uang_tunai:,.0f}\n" \
@@ -233,7 +235,7 @@ with tab1:
         encoded_wa = urllib.parse.quote(pesan_wa)
         whatsapp_url = f"https://api.whatsapp.com/send?text={encoded_wa}"
 
-        # Tombol Aksi Akhir (Download File ESC/POS untuk RawBT & Tombol WhatsApp)
+        # Tombol Aksi Akhir
         col_btn1, col_btn2 = st.columns(2)
         
         with col_btn1:
