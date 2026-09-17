@@ -6,7 +6,7 @@ import urllib.parse
 st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 
 st.title("🏪 Kasir Toko Sembako (ESC/POS RawBT)")
-st.markdown("Aplikasi Kasir dengan Pratinjau Berjarak, Cetak ESC/POS & WhatsApp")
+st.markdown("Aplikasi Kasir dengan Pencarian Database, Pratinjau, Cetak ESC/POS & WhatsApp")
 
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
@@ -32,8 +32,18 @@ tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
 
 with tab2:
     st.subheader("Daftar Barang & Harga Bertingkat (Google Sheets)")
-    st.dataframe(df_produk, use_container_width=True)
-    st.info("💡 Data di atas terhubung otomatis dari Google Spreadsheet Anda.")
+    st.info("💡 Data di bawah terhubung otomatis dari Google Spreadsheet Anda.")
+    
+    # --- PANEL PENCARIAN DI TAB DAFTAR HARGA ---
+    search_database = st.text_input("🔍 Cari produk di database:", placeholder="Ketik nama barang yang ingin dicari...", key="search_db")
+    
+    df_database_tampil = df_produk.copy()
+    if search_database:
+        df_database_tampil = df_database_tampil[
+            df_database_tampil[kolom_nama_barang].astype(str).str.contains(search_database, case=False, na=False)
+        ]
+    
+    st.dataframe(df_database_tampil, use_container_width=True)
 
 with tab1:
     st.subheader("1. Pilih Jenis Pelanggan & Tambah Barang")
@@ -47,7 +57,7 @@ with tab1:
     if kolom_harga_pilihan not in df_produk.columns:
         kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
     
-    keyword_cari = st.text_input("🔍 Cari nama barang:", placeholder="Contoh: minyak, beras, gula...")
+    keyword_cari = st.text_input("🔍 Cari nama barang untuk kasir:", placeholder="Contoh: minyak, beras, gula...")
     
     df_produk_aktif = df_produk.copy()
     
@@ -114,7 +124,7 @@ with tab1:
         waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         printer_width = 32  # Lebar standar karakter printer thermal 58mm
 
-        # --- PENYUSUNAN STRUK TEKS UNTUK PREVIEW (DENGAN TAMBAHAN JARAK) ---
+        # --- PENYUSUNAN STRUK TEKS UNTUK PREVIEW ---
         lines_preview = []
         lines_preview.append("TOKO JABON KIDUL SEPUR")
         lines_preview.append("Jabon - Jombang")
@@ -131,7 +141,7 @@ with tab1:
             detail_kiri = f"{harga_str} x {item['Qty']} item"
             space_len = printer_width - (len(detail_kiri) + len(sub_str))
             lines_preview.append(detail_kiri + (" " * max(1, space_len)) + sub_str)
-            lines_preview.append("") # <--- Tambahan baris kosong antar barang di nota fisik/preview
+            lines_preview.append("") # Spasi antar barang
 
         lines_preview.append("-" * printer_width)
         
@@ -163,7 +173,7 @@ with tab1:
 
         st.write("")
 
-        # --- PEMBUATAN BYTE ESC/POS UNTUK RAWBT (DENGAN TAMBAHAN JARAK) ---
+        # --- PEMBUATAN BYTE ESC/POS UNTUK RAWBT ---
         INIT = b'\x1b\x40'
         ALIGN_CENTER = b'\x1b\x61\x01'
         ALIGN_LEFT = b'\x1b\x61\x00'
@@ -198,7 +208,7 @@ with tab1:
             space_len = printer_width - (len(detail_kiri) + len(sub_str))
             baris_item = detail_kiri + (" " * max(1, space_len)) + sub_str
             add_line(baris_item, ALIGN_LEFT)
-            add_line("") # <--- Tambahan baris kosong di printer fisik
+            add_line("")
 
         add_line("-" * printer_width, ALIGN_CENTER)
 
@@ -217,14 +227,14 @@ with tab1:
         add_line("\n\n")
         raw_bytes.extend(CUT_PAPER)
 
-        # --- BUAT LINK WHATSAPP (DENGAN TAMBAHAN JARAK) ---
+        # --- BUAT LINK WHATSAPP ---
         pesan_wa = f"*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n" \
                    f"----------------------------------\n" \
                    f"Tgl : {waktu_sekarang}\n" \
                    f"Plg : {nama_pembeli} ({jenis_pelanggan})\n" \
                    f"----------------------------------\n"
         for item in st.session_state.keranjang:
-            pesan_wa += f"• {item['Nama Barang']}\n  {item['Harga Satuan']:,.0f} x {item['Qty']} = *Rp {item['Subtotal']:,.0f}*\n\n".replace(',', '.') # <--- Tambahan \n di WhatsApp
+            pesan_wa += f"• {item['Nama Barang']}\n  {item['Harga Satuan']:,.0f} x {item['Qty']} = *Rp {item['Subtotal']:,.0f}*\n\n".replace(',', '.')
         pesan_wa += f"----------------------------------\n" \
                     f"Total    : *Rp {total_belanja_semua:,.0f}*\n" \
                     f"Tunai    : Rp {uang_tunai:,.0f}\n" \
