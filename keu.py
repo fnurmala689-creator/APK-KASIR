@@ -11,36 +11,24 @@ st.markdown("Aplikasi Kasir dengan Harga Berdasarkan Jenis Pelanggan & Cetak Tek
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
 
-# Inisialisasi Database Produk & Otomatis Tarik dari Link Permanen saat pertama kali buka / refresh
-if "df_produk" not in st.session_state:
-    try:
-        st.session_state.df_produk = pd.read_csv(PERMANENT_CSV_URL)
-    except:
-        # Fallback cadangan jika koneksi gagal
-        st.session_state.df_produk = pd.DataFrame({
-            "Nama Barang": ["Beras Premium 1 Kg", "Minyak Goreng 1 Liter"],
-            "Harga Umum": [15000, 17500],
-            "Harga Reseller": [13500, 16000],
-            "Harga Pengusaha": [12500, 15000]
-        })
+# --- TARIK DATA LANGSUNG DARI SPREADSHEET (OTOMATIS UPDATE SAAT REFRESH) ---
+try:
+    df_produk = pd.read_csv(PERMANENT_CSV_URL)
+except Exception as e:
+    # Fallback cadangan jika koneksi internet gagal
+    df_produk = pd.DataFrame({
+        "Nama Barang": ["Beras Premium 1 Kg", "Minyak Goreng 1 Liter"],
+        "Harga Umum": [15000, 17500],
+        "Harga Reseller": [13500, 16000],
+        "Harga Pengusaha": [12500, 15000]
+    })
 
-# Tombol untuk memperbarui/sinkronkan data jika sewaktu-waktu harga di spreadsheet berubah
-if st.sidebar.button("🔄 Sinkronkan Ulang Data dari Spreadsheet"):
-    try:
-        df_cloud = pd.read_csv(PERMANENT_CSV_URL)
-        df_cloud.columns = df_cloud.columns.str.strip()
-        st.session_state.df_produk = df_cloud
-        st.sidebar.success("Berhasil memperbarui data dari Google Sheets!")
-    except Exception as e:
-        st.sidebar.error(f"Gagal memuat data: {e}")
-
-# Pastikan nama kolom standar aman
-df_aktif_check = st.session_state.df_produk.copy()
-df_aktif_check.columns = df_aktif_check.columns.str.strip()
+# Bersihkan spasi di nama kolom spreadsheet jaga-jaga ada typo
+df_produk.columns = df_produk.columns.str.strip()
 
 # Deteksi nama kolom produk secara fleksibel
 kolom_nama_opsi = ["Nama Barang", "nama barang", "Nama", "nama", "Produk", "produk"]
-kolom_nama_barang = next((col for col in kolom_nama_opsi if col in df_aktif_check.columns), df_aktif_check.columns[0])
+kolom_nama_barang = next((col for col in kolom_nama_opsi if col in df_produk.columns), df_produk.columns[0])
 
 # Inisialisasi keranjang belanja
 if "keranjang" not in st.session_state:
@@ -50,8 +38,8 @@ tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Kelola Daftar Harga"])
 
 with tab2:
     st.subheader("Daftar Barang & Harga Bertingkat (Database)")
-    st.dataframe(st.session_state.df_produk, use_container_width=True)
-    st.info("💡 Data di atas terhubung otomatis dari Google Spreadsheet Anda. Jika mengubah harga di spreadsheet, klik tombol 'Sinkronkan Ulang Data' di menu samping kiri.")
+    st.dataframe(df_produk, use_container_width=True)
+    st.info("💡 Data di atas sekarang akan **otomatis update** setiap kali Anda me-refresh halaman jika ada perubahan di Google Spreadsheet.")
 
 with tab1:
     st.subheader("1. Pilih Jenis Pelanggan & Tambah Barang")
@@ -64,12 +52,12 @@ with tab1:
     
     # Deteksi kolom harga fleksibel di spreadsheet
     kolom_harga_pilihan = f"Harga {jenis_pelanggan}"
-    if kolom_harga_pilihan not in df_aktif_check.columns:
-        kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_aktif_check.columns else df_aktif_check.columns[1]
+    if kolom_harga_pilihan not in df_produk.columns:
+        kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
     
     keyword_cari = st.text_input("🔍 Cari nama barang:", placeholder="Contoh: minyak, beras, gula...")
     
-    df_produk_aktif = df_aktif_check.copy()
+    df_produk_aktif = df_produk.copy()
     
     if keyword_cari:
         df_produk_aktif = df_produk_aktif[
