@@ -1,17 +1,17 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
+import base64
 import urllib.parse
 
 st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 
-st.title("🏪 Kasir Toko Sembako (Multi-Level Pricing)")
-st.markdown("Aplikasi Kasir dengan Harga Bertingkat, Cetak Teks RawBT & Kirim WhatsApp")
+st.title("🏪 Kasir Toko Sembako (ESC/POS RawBT + Preview)")
+st.markdown("Aplikasi Kasir dengan Pratinjau Nota, Cetak ESC/POS & WhatsApp")
 
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
 
-# --- TARIK DATA LANGSUNG DARI SPREADSHEET (OTOMATIS UPDATE SAAT REFRESH) ---
 try:
     df_produk = pd.read_csv(PERMANENT_CSV_URL)
 except Exception as e:
@@ -23,11 +23,9 @@ except Exception as e:
     })
 
 df_produk.columns = df_produk.columns.str.strip()
-
 kolom_nama_opsi = ["Nama Barang", "nama barang", "Nama", "nama", "Produk", "produk"]
 kolom_nama_barang = next((col for col in kolom_nama_opsi if col in df_produk.columns), df_produk.columns[0])
 
-# Inisialisasi keranjang belanja
 if "keranjang" not in st.session_state:
     st.session_state.keranjang = []
 
@@ -36,7 +34,7 @@ tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
 with tab2:
     st.subheader("Daftar Barang & Harga Bertingkat (Google Sheets)")
     st.dataframe(df_produk, use_container_width=True)
-    st.info("💡 Data di atas terhubung otomatis dari Google Spreadsheet Anda. Edit dan tambah barang langsung di Google Sheets.")
+    st.info("💡 Data di atas terhubung otomatis dari Google Spreadsheet Anda.")
 
 with tab1:
     st.subheader("1. Pilih Jenis Pelanggan & Tambah Barang")
@@ -99,116 +97,166 @@ with tab1:
         total_belanja_semua = df_keranjang["Subtotal"].sum()
         st.metric(label="TOTAL YANG HARUS DIBAYAR", value=f"Rp {total_belanja_semua:,.0f}")
 
-        col_aksi1, col_aksi2, col_aksi3 = st.columns(3)
+        col_aksi1, col_aksi2 = st.columns(2)
         with col_aksi1:
             nama_pembeli = st.text_input("Nama Pelanggan", value="Pelanggan Umum")
         with col_aksi2:
             uang_tunai = st.number_input("Uang Tunai (Rp)", min_value=0, value=int(total_belanja_semua), step=5000)
-        with col_aksi3:
-            st.write("")
-            st.write("")
-            if st.button("🗑️ Kosongkan Keranjang"):
-                st.session_state.keranjang = []
-                st.rerun()
+
+        if st.button("🗑️ Kosongkan Keranjang", type="secondary"):
+            st.session_state.keranjang = []
+            st.rerun()
 
         uang_kembalian = uang_tunai - total_belanja_semua
 
-        if st.button("✨ Proses Nota Pembelian"):
-            waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            printer_width = 32  # Lebar standar karakter printer thermal 58mm
+        st.divider()
+        st.subheader("👀 Pratinjau (Preview) Nota")
 
-            # --- PENYUSUNAN FORMAT TEKS STRUK ---
-            lines = []
-            
-            # Header Toko (Center)
-            lines.append("TOKO JABON KIDUL SEPUR".center(printer_width))
-            lines.append("Jabon - Jombang".center(printer_width))
-            lines.append("Tel. 0857 3395 8305".center(printer_width))
-            lines.append("-" * printer_width)
-            
-            # Info Transaksi
-            lines.append(f"Tgl : {waktu_sekarang}")
-            lines.append(f"Plg : {nama_pembeli} ({jenis_pelanggan})")
-            lines.append("-" * printer_width)
-            
-            # Daftar Barang
-            for item in st.session_state.keranjang:
-                lines.append(item['Nama Barang'])
-                harga_str = f"{item['Harga Satuan']:,.0f}".replace(',', '.')
-                sub_str = f"{item['Subtotal']:,.0f}".replace(',', '.')
-                detail_kiri = f"{harga_str} x {item['Qty']} item"
-                space_len = printer_width - (len(detail_kiri) + len(sub_str))
-                lines.append(detail_kiri + (" " * max(1, space_len)) + sub_str)
-                
-            lines.append("-" * printer_width)
-            
-            # Ringkasan Pembayaran
-            sub_total_str = f"{total_belanja_semua:,.0f}".replace(',', '.')
-            tot_str = f"{total_belanja_semua:,.0f}".replace(',', '.')
-            tunai_str = f"{uang_tunai:,.0f}".replace(',', '.')
-            kembalian_str = f"{uang_kembalian:,.0f}".replace(',', '.')
-            
-            def add_row(label, val):
-                space = printer_width - (len(label) + len(val))
-                return label + (" " * max(1, space)) + val
+        waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        printer_width = 32  # Lebar standar karakter printer thermal 58mm
 
-            lines.append(add_row("Subtotal", sub_total_str))
-            lines.append("-" * printer_width)
-            lines.append(add_row("Total", tot_str))
-            lines.append(add_row("Tunai", tunai_str))
-            lines.append(add_row("Kembalian", kembalian_str))
-            lines.append("-" * printer_width)
+        # --- PENYUSUNAN STRUK TEKS UNTUK PREVIEW ---
+        lines_preview = []
+        lines_preview.append("TOKO JABON KIDUL SEPUR")
+        lines_preview.append("Jabon - Jombang")
+        lines_preview.append("Tel. 0857 3395 8305")
+        lines_preview.append("-" * printer_width)
+        lines_preview.append(f"Tgl : {waktu_sekarang}")
+        lines_preview.append(f"Plg : {nama_pembeli} ({jenis_pelanggan})")
+        lines_preview.append("-" * printer_width)
+
+        for item in st.session_state.keranjang:
+            lines_preview.append(item['Nama Barang'])
+            harga_str = f"{item['Harga Satuan']:,.0f}".replace(',', '.')
+            sub_str = f"{item['Subtotal']:,.0f}".replace(',', '.')
+            detail_kiri = f"{harga_str} x {item['Qty']} item"
+            space_len = printer_width - (len(detail_kiri) + len(sub_str))
+            lines_preview.append(detail_kiri + (" " * max(1, space_len)) + sub_str)
+
+        lines_preview.append("-" * printer_width)
+        
+        def add_row_preview(label, val):
+            space = printer_width - (len(label) + len(val))
+            return label + (" " * max(1, space)) + val
+
+        sub_total_str = f"{total_belanja_semua:,.0f}".replace(',', '.')
+        tot_str = f"{total_belanja_semua:,.0f}".replace(',', '.')
+        tunai_str = f"{uang_tunai:,.0f}".replace(',', '.')
+        kembalian_str = f"{uang_kembalian:,.0f}".replace(',', '.')
+
+        lines_preview.append(add_row_preview("Subtotal", sub_total_str))
+        lines_preview.append("-" * printer_width)
+        lines_preview.append(add_row_preview("Total", tot_str))
+        lines_preview.append(add_row_preview("Tunai", tunai_str))
+        lines_preview.append(add_row_preview("Kembalian", kembalian_str))
+        lines_preview.append("-" * printer_width)
+        lines_preview.append("Terima Kasih")
+
+        teks_preview_html = "\n".join(lines_preview)
+
+        # Tampilkan kotak pratinjau bergaya struk kasir
+        st.markdown(f"""
+            <div style="background-color: #f8f9fa; border: 1px dashed #6c757d; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; font-size: 13px; color: #000; max-width: 400px; margin: 0 auto; text-align: center;">
+{teks_preview_html}
+            </div>
+        """, unsafe_allow_html=True)
+
+        st.write("")
+
+        # --- PEMBUATAN BYTE ESC/POS UNTUK RAWBT ---
+        INIT = b'\x1b\x40'
+        ALIGN_CENTER = b'\x1b\x61\x01'
+        ALIGN_LEFT = b'\x1b\x61\x00'
+        BOLD_ON = b'\x1b\x45\x01'
+        BOLD_OFF = b'\x1b\x45\x00'
+        CUT_PAPER = b'\x1d\x56\x41\x10'
+
+        raw_bytes = bytearray()
+        raw_bytes.extend(INIT)
+
+        def add_line(text="", align=ALIGN_LEFT, bold=False):
+            raw_bytes.extend(align)
+            if bold:
+                raw_bytes.extend(BOLD_ON)
+            else:
+                raw_bytes.extend(BOLD_OFF)
+            raw_bytes.extend((text + "\n").encode('utf-8'))
+
+        add_line("TOKO JABON KIDUL SEPUR", ALIGN_CENTER, bold=True)
+        add_line("Jabon - Jombang", ALIGN_CENTER)
+        add_line("Tel. 0857 3395 8305", ALIGN_CENTER)
+        add_line("-" * printer_width, ALIGN_CENTER)
+        add_line(f"Tgl : {waktu_sekarang}", ALIGN_LEFT)
+        add_line(f"Plg : {nama_pembeli} ({jenis_pelanggan})", ALIGN_LEFT)
+        add_line("-" * printer_width, ALIGN_CENTER)
+
+        for item in st.session_state.keranjang:
+            add_line(item['Nama Barang'], ALIGN_LEFT, bold=True)
+            harga_str = f"{item['Harga Satuan']:,.0f}".replace(',', '.')
+            sub_str = f"{item['Subtotal']:,.0f}".replace(',', '.')
+            detail_kiri = f"{harga_str} x {item['Qty']} item"
+            space_len = printer_width - (len(detail_kiri) + len(sub_str))
+            baris_item = detail_kiri + (" " * max(1, space_len)) + sub_str
+            add_line(baris_item, ALIGN_LEFT)
+
+        add_line("-" * printer_width, ALIGN_CENTER)
+
+        def add_row_bytes(label, val, is_bold=False):
+            space = printer_width - (len(label) + len(val))
+            row_text = label + (" " * max(1, space)) + val
+            add_line(row_text, ALIGN_LEFT, bold=is_bold)
+
+        add_row_bytes("Subtotal", sub_total_str)
+        add_line("-" * printer_width, ALIGN_CENTER)
+        add_row_bytes("Total", tot_str, is_bold=True)
+        add_row_bytes("Tunai", tunai_str)
+        add_row_bytes("Kembalian", kembalian_str)
+        add_line("-" * printer_width, ALIGN_CENTER)
+        add_line("Terima Kasih", ALIGN_CENTER, bold=True)
+        add_line("\n\n")
+        raw_bytes.extend(CUT_PAPER)
+
+        b64_bytes = base64.b64encode(raw_bytes).decode('utf-8')
+        rawbt_url = f"rawbt:data:application/octet-stream;base64,{b64_bytes}"
+
+        # --- BUAT LINK WHATSAPP ---
+        pesan_wa = f"*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n" \
+                   f"----------------------------------\n" \
+                   f"Tgl : {waktu_sekarang}\n" \
+                   f"Plg : {nama_pembeli} ({jenis_pelanggan})\n" \
+                   f"----------------------------------\n"
+        for item in st.session_state.keranjang:
+            pesan_wa += f"• {item['Nama Barang']}\n  {item['Harga Satuan']:,.0f} x {item['Qty']} = *Rp {item['Subtotal']:,.0f}*\n".replace(',', '.')
+        pesan_wa += f"----------------------------------\n" \
+                    f"Total    : *Rp {total_belanja_semua:,.0f}*\n" \
+                    f"Tunai    : Rp {uang_tunai:,.0f}\n" \
+                    f"Kembalian: Rp {uang_kembalian:,.0f}\n" \
+                    f"----------------------------------\n" \
+                    f"Terima Kasih Telah Berbelanja!".replace(',', '.')
+        
+        encoded_wa = urllib.parse.quote(pesan_wa)
+        whatsapp_url = f"https://api.whatsapp.com/send?text={encoded_wa}"
+
+        # Tombol Aksi Akhir
+        col_btn1, col_btn2 = st.columns(2)
+        
+        with col_btn1:
+            st.markdown(f"""
+                <div style="text-align: center; margin-top: 10px;">
+                    <a href="{rawbt_url}" target="_blank" style="background-color: #28a745; color: white; padding: 12px 20px; text-decoration: none; font-size: 15px; border-radius: 6px; font-weight: bold; display: block;">
+                        🖨️ Cetak Teks ESC/POS
+                    </a>
+                </div>
+            """, unsafe_allow_html=True)
             
-            # Footer (Center)
-            lines.append("Terima Kasih".center(printer_width))
-            lines.append("\n\n")
-
-            teks_nota = "\n".join(lines)
-
-            # --- BUAT LINK RAWBT TEXT ---
-            encoded_text = urllib.parse.quote(teks_nota)
-            rawbt_url = f"rawbt:data:text/plain;charset=utf-8,{encoded_text}"
-
-            # --- BUAT LINK WHATSAPP ---
-            pesan_wa = f"*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n" \
-                       f"----------------------------------\n" \
-                       f"Tgl : {waktu_sekarang}\n" \
-                       f"Plg : {nama_pembeli} ({jenis_pelanggan})\n" \
-                       f"----------------------------------\n"
-            for item in st.session_state.keranjang:
-                pesan_wa += f"• {item['Nama Barang']}\n  {item['HargaSatuan'] if 'HargaSatuan' in item else item['Harga Satuan']:,.0f} x {item['Qty']} = *Rp {item['Subtotal']:,.0f}*\n".replace(',', '.')
-            pesan_wa += f"----------------------------------\n" \
-                        f"Total    : *Rp {total_belanja_semua:,.0f}*\n" \
-                        f"Tunai    : Rp {uang_tunai:,.0f}\n" \
-                        f"Kembalian: Rp {uang_kembalian:,.0f}\n" \
-                        f"----------------------------------\n" \
-                        f"Terima Kasih Telah Berbelanja!".replace(',', '.')
-            
-            encoded_wa = urllib.parse.quote(pesan_wa)
-            whatsapp_url = f"https://api.whatsapp.com/send?text={encoded_wa}"
-
-            st.success("Nota berhasil diproses!")
-
-            # Tampilan Tombol Aksi (Cetak Teks & Kirim WhatsApp)
-            col_btn1, col_btn2 = st.columns(2)
-            
-            with col_btn1:
-                st.markdown(f"""
-                    <div style="text-align: center; margin-top: 15px;">
-                        <a href="{rawbt_url}" target="_blank" style="background-color: #28a745; color: white; padding: 12px 20px; text-decoration: none; font-size: 15px; border-radius: 6px; font-weight: bold; display: inline-block;">
-                            🖨️ Cetak Teks (RawBT)
-                        </a>
-                    </div>
-                """, unsafe_allow_html=True)
-                
-            with col_btn2:
-                st.markdown(f"""
-                    <div style="text-align: center; margin-top: 15px;">
-                        <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 12px 20px; text-decoration: none; font-size: 15px; border-radius: 6px; font-weight: bold; display: inline-block;">
-                            💬 Kirim via WhatsApp
-                        </a>
-                    </div>
-                """, unsafe_allow_html=True)
+        with col_btn2:
+            st.markdown(f"""
+                <div style="text-align: center; margin-top: 10px;">
+                    <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 12px 20px; text-decoration: none; font-size: 15px; border-radius: 6px; font-weight: bold; display: block;">
+                        💬 Kirim via WhatsApp
+                    </a>
+                </div>
+            """, unsafe_allow_html=True)
 
     else:
         st.info("Keranjang masih kosong. Silakan cari dan tambah barang di atas.")
