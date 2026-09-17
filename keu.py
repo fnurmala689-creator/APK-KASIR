@@ -127,10 +127,10 @@ with tab1:
         lines_preview = []
         lines_preview.append("TOKO JABON KIDUL SEPUR")
         lines_preview.append("Jabon - Jombang")
-        lines_preview.append("Telp. 0857 3395 8305")
+        lines_preview.append("Tel. 0857 3395 8305")
         lines_preview.append("-" * printer_width)
-        lines_preview.append(f"Tanggal : {waktu_sekarang}")
-        lines_preview.append(f"Kepada : {nama_pembeli} ({jenis_pelanggan})")
+        lines_preview.append(f"Tgl : {waktu_sekarang}")
+        lines_preview.append(f"Plg : {nama_pembeli} ({jenis_pelanggan})")
         lines_preview.append("-" * printer_width)
 
         for item in st.session_state.keranjang:
@@ -159,7 +159,7 @@ with tab1:
         lines_preview.append(add_row_preview("Tunai", tunai_str))
         lines_preview.append(add_row_preview("Kembalian", kembalian_str))
         lines_preview.append("-" * printer_width)
-        lines_preview.append("Terima Kasih & Semoga Berkah")
+        lines_preview.append("Terima Kasih")
 
         teks_preview_html = "\n".join(lines_preview)
 
@@ -171,13 +171,13 @@ with tab1:
 
         st.write("")
 
-        # --- PEMBUATAN BYTE ESC/POS UNTUK RAWBT (DIPERAPI JARAK BAWAHNYA) ---
+        # --- PEMBUATAN BYTE ESC/POS UNTUK RAWBT (DIPEPETKAN MAKSIMAL TANPA SPASI BAWAH) ---
         INIT = b'\x1b\x40'
         ALIGN_CENTER = b'\x1b\x61\x01'
         ALIGN_LEFT = b'\x1b\x61\x00'
         BOLD_ON = b'\x1b\x45\x01'
         BOLD_OFF = b'\x1b\x45\x00'
-        CUT_PAPER = b'\x1d\x56\x41\x03' # Diubah agar potong kertas pas dan rapi
+        CUT_PAPER = b'\x1d\x56\x00' # Perintah potong langsung rapat tanpa feeding berlebih
 
         raw_bytes = bytearray()
         raw_bytes.extend(INIT)
@@ -192,10 +192,10 @@ with tab1:
 
         add_line("TOKO JABON KIDUL SEPUR", ALIGN_CENTER, bold=True)
         add_line("Jabon - Jombang", ALIGN_CENTER)
-        add_line("Telp. 0857 3395 8305", ALIGN_CENTER)
+        add_line("Tel. 0857 3395 8305", ALIGN_CENTER)
         add_line("-" * printer_width, ALIGN_CENTER)
-        add_line(f"Tanggal : {waktu_sekarang}", ALIGN_LEFT)
-        add_line(f"Kepada : {nama_pembeli} ({jenis_pelanggan})", ALIGN_LEFT)
+        add_line(f"Tgl : {waktu_sekarang}", ALIGN_LEFT)
+        add_line(f"Plg : {nama_pembeli} ({jenis_pelanggan})", ALIGN_LEFT)
         add_line("-" * printer_width, ALIGN_CENTER)
 
         for item in st.session_state.keranjang:
@@ -221,15 +221,21 @@ with tab1:
         add_row_bytes("Tunai", tunai_str)
         add_row_bytes("Kembalian", kembalian_str)
         add_line("-" * printer_width, ALIGN_CENTER)
-        add_line("Terima Kasih & Semoga Berkah", ALIGN_CENTER, bold=True)
-        add_line("\n") # Spasi secukupnya sebelum terpotong
+        
+        # Cetak "Terima Kasih" rata tengah tanpa baris kosong penutup di bawahnya
+        raw_bytes.extend(ALIGN_CENTER)
+        raw_bytes.extend(BOLD_ON)
+        raw_bytes.extend(b"Terima Kasih\n")
+        raw_bytes.extend(BOLD_OFF)
+        
+        # Langsung potong kertas rapat
         raw_bytes.extend(CUT_PAPER)
 
         # --- BUAT LINK WHATSAPP ---
         pesan_wa = f"*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n" \
                    f"----------------------------------\n" \
                    f"Tgl : {waktu_sekarang}\n" \
-                   f"Kepada : {nama_pembeli} ({jenis_pelanggan})\n" \
+                   f"Plg : {nama_pembeli} ({jenis_pelanggan})\n" \
                    f"----------------------------------\n"
         for item in st.session_state.keranjang:
             pesan_wa += f"• {item['Nama Barang']}\n  {item['Harga Satuan']:,.0f} x {item['Qty']} = *Rp {item['Subtotal']:,.0f}*\n\n".replace(',', '.')
@@ -238,7 +244,7 @@ with tab1:
                     f"Tunai    : Rp {uang_tunai:,.0f}\n" \
                     f"Kembalian: Rp {uang_kembalian:,.0f}\n" \
                     f"----------------------------------\n" \
-                    f"Terima Kasih & Semoga Berkah".replace(',', '.')
+                    f"Terima Kasih Telah Berbelanja!".replace(',', '.')
         
         encoded_wa = urllib.parse.quote(pesan_wa)
         whatsapp_url = f"https://api.whatsapp.com/send?text={encoded_wa}"
