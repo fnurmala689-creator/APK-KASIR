@@ -1,12 +1,11 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import base64
 import urllib.parse
 
 st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 
-st.title("🏪 Kasir Toko Sembako (ESC/POS RawBT + Preview)")
+st.title("🏪 Kasir Toko Sembako (ESC/POS RawBT)")
 st.markdown("Aplikasi Kasir dengan Pratinjau Nota, Cetak ESC/POS & WhatsApp")
 
 # --- LINK SPREADSHEET PERMANEN ---
@@ -216,9 +215,6 @@ with tab1:
         add_line("\n\n")
         raw_bytes.extend(CUT_PAPER)
 
-        b64_bytes = base64.b64encode(raw_bytes).decode('utf-8')
-        rawbt_url = f"rawbt:data:application/octet-stream;base64,{b64_bytes}"
-
         # --- BUAT LINK WHATSAPP ---
         pesan_wa = f"*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n" \
                    f"----------------------------------\n" \
@@ -237,22 +233,22 @@ with tab1:
         encoded_wa = urllib.parse.quote(pesan_wa)
         whatsapp_url = f"https://api.whatsapp.com/send?text={encoded_wa}"
 
-        # Tombol Aksi Akhir
+        # Tombol Aksi Akhir (Download File ESC/POS untuk RawBT & Tombol WhatsApp)
         col_btn1, col_btn2 = st.columns(2)
         
         with col_btn1:
-            st.markdown(f"""
-                <div style="text-align: center; margin-top: 10px;">
-                    <a href="{rawbt_url}" target="_blank" style="background-color: #28a745; color: white; padding: 12px 20px; text-decoration: none; font-size: 15px; border-radius: 6px; font-weight: bold; display: block;">
-                        🖨️ Cetak Teks ESC/POS
-                    </a>
-                </div>
-            """, unsafe_allow_html=True)
+            st.download_button(
+                label="🖨️ Cetak Nota ESC/POS",
+                data=bytes(raw_bytes),
+                file_name="nota_kasir.bin",
+                mime="application/octet-stream",
+                use_container_width=True
+            )
             
         with col_btn2:
             st.markdown(f"""
-                <div style="text-align: center; margin-top: 10px;">
-                    <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 12px 20px; text-decoration: none; font-size: 15px; border-radius: 6px; font-weight: bold; display: block;">
+                <div style="text-align: center;">
+                    <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 10px 20px; text-decoration: none; font-size: 15px; border-radius: 4px; font-weight: bold; display: block; margin-top: 2px;">
                         💬 Kirim via WhatsApp
                     </a>
                 </div>
