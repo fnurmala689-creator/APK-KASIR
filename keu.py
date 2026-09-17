@@ -6,7 +6,7 @@ import urllib.parse
 st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 
 st.title("🏪 Kasir Toko Sembako (Multi-Level Pricing)")
-st.markdown("Aplikasi Kasir dengan Harga Berdasarkan Jenis Pelanggan & Cetak Teks RawBT")
+st.markdown("Aplikasi Kasir dengan Harga Bertingkat, Cetak Teks RawBT & Kirim WhatsApp")
 
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
@@ -15,7 +15,6 @@ PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn
 try:
     df_produk = pd.read_csv(PERMANENT_CSV_URL)
 except Exception as e:
-    # Fallback cadangan jika koneksi internet gagal
     df_produk = pd.DataFrame({
         "Nama Barang": ["Beras Premium 1 Kg", "Minyak Goreng 1 Liter"],
         "Harga Umum": [15000, 17500],
@@ -23,10 +22,8 @@ except Exception as e:
         "Harga Pengusaha": [12500, 15000]
     })
 
-# Bersihkan spasi di nama kolom spreadsheet jaga-jaga ada typo
 df_produk.columns = df_produk.columns.str.strip()
 
-# Deteksi nama kolom produk secara fleksibel
 kolom_nama_opsi = ["Nama Barang", "nama barang", "Nama", "nama", "Produk", "produk"]
 kolom_nama_barang = next((col for col in kolom_nama_opsi if col in df_produk.columns), df_produk.columns[0])
 
@@ -34,23 +31,21 @@ kolom_nama_barang = next((col for col in kolom_nama_opsi if col in df_produk.col
 if "keranjang" not in st.session_state:
     st.session_state.keranjang = []
 
-tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Kelola Daftar Harga"])
+tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
 
 with tab2:
-    st.subheader("Daftar Barang & Harga Bertingkat (Database)")
+    st.subheader("Daftar Barang & Harga Bertingkat (Google Sheets)")
     st.dataframe(df_produk, use_container_width=True)
-    st.info("💡 Data di atas sekarang akan **otomatis update** setiap kali Anda me-refresh halaman jika ada perubahan di Google Spreadsheet.")
+    st.info("💡 Data di atas terhubung otomatis dari Google Spreadsheet Anda. Edit dan tambah barang langsung di Google Sheets.")
 
 with tab1:
     st.subheader("1. Pilih Jenis Pelanggan & Tambah Barang")
     
-    # Pilihan Jenis Pelanggan untuk menentukan level harga
     jenis_pelanggan = st.selectbox(
         "🏷️ Pilih Level Harga / Jenis Pelanggan:", 
         ["Umum", "Reseller", "Pengusaha"]
     )
     
-    # Deteksi kolom harga fleksibel di spreadsheet
     kolom_harga_pilihan = f"Harga {jenis_pelanggan}"
     if kolom_harga_pilihan not in df_produk.columns:
         kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
@@ -174,16 +169,46 @@ with tab1:
             encoded_text = urllib.parse.quote(teks_nota)
             rawbt_url = f"rawbt:data:text/plain;charset=utf-8,{encoded_text}"
 
-            st.success("Nota teks berhasil dibuat!")
+            # --- BUAT LINK WHATSAPP ---
+            pesan_wa = f"*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n" \
+                       f"----------------------------------\n" \
+                       f"Tgl : {waktu_sekarang}\n" \
+                       f"Plg : {nama_pembeli} ({jenis_pelanggan})\n" \
+                       f"----------------------------------\n"
+            for item in st.session_state.keranjang:
+                pesan_wa += f"• {item['Nama Barang']}\n  {item['HargaSatuan'] if 'HargaSatuan' in item else item['Harga Satuan']:,.0f} x {item['Qty']} = *Rp {item['Subtotal']:,.0f}*\n".replace(',', '.')
+            pesan_wa += f"----------------------------------\n" \
+                        f"Total    : *Rp {total_belanja_semua:,.0f}*\n" \
+                        f"Tunai    : Rp {uang_tunai:,.0f}\n" \
+                        f"Kembalian: Rp {uang_kembalian:,.0f}\n" \
+                        f"----------------------------------\n" \
+                        f"Terima Kasih Telah Berbelanja!".replace(',', '.')
+            
+            encoded_wa = urllib.parse.quote(pesan_wa)
+            whatsapp_url = f"https://api.whatsapp.com/send?text={encoded_wa}"
 
-            # Tombol Cetak Teks via RawBT
-            st.markdown(f"""
-                <div style="text-align: center; margin-top: 15px;">
-                    <a href="{rawbt_url}" target="_blank" style="background-color: #28a745; color: white; padding: 12px 24px; text-decoration: none; font-size: 16px; border-radius: 6px; font-weight: bold; display: inline-block;">
-                        🖨️ Cetak Nota Teks (Anti Blur & Tajam)
-                    </a>
-                </div>
-            """, unsafe_allow_html=True)
+            st.success("Nota berhasil diproses!")
+
+            # Tampilan Tombol Aksi (Cetak Teks & Kirim WhatsApp)
+            col_btn1, col_btn2 = st.columns(2)
+            
+            with col_btn1:
+                st.markdown(f"""
+                    <div style="text-align: center; margin-top: 15px;">
+                        <a href="{rawbt_url}" target="_blank" style="background-color: #28a745; color: white; padding: 12px 20px; text-decoration: none; font-size: 15px; border-radius: 6px; font-weight: bold; display: inline-block;">
+                            🖨️ Cetak Teks (RawBT)
+                        </a>
+                    </div>
+                """, unsafe_allow_html=True)
+                
+            with col_btn2:
+                st.markdown(f"""
+                    <div style="text-align: center; margin-top: 15px;">
+                        <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 12px 20px; text-decoration: none; font-size: 15px; border-radius: 6px; font-weight: bold; display: inline-block;">
+                            💬 Kirim via WhatsApp
+                        </a>
+                    </div>
+                """, unsafe_allow_html=True)
 
     else:
         st.info("Keranjang masih kosong. Silakan cari dan tambah barang di atas.")
