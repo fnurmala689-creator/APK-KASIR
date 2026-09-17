@@ -171,13 +171,13 @@ with tab1:
 
         st.write("")
 
-        # --- PEMBUATAN BYTE ESC/POS UNTUK RAWBT (DIPEPETKAN MAKSIMAL TANPA SPASI BAWAH) ---
+        # --- PEMBUATAN BYTE ESC/POS UNTUK RAWBT ---
         INIT = b'\x1b\x40'
         ALIGN_CENTER = b'\x1b\x61\x01'
         ALIGN_LEFT = b'\x1b\x61\x00'
         BOLD_ON = b'\x1b\x45\x01'
         BOLD_OFF = b'\x1b\x45\x00'
-        CUT_PAPER = b'\x1d\x56\x00' # Perintah potong langsung rapat tanpa feeding berlebih
+        CUT_PAPER = b'\x1d\x56\x00'
 
         raw_bytes = bytearray()
         raw_bytes.extend(INIT)
@@ -222,14 +222,15 @@ with tab1:
         add_row_bytes("Kembalian", kembalian_str)
         add_line("-" * printer_width, ALIGN_CENTER)
         
-        # Cetak "Terima Kasih" rata tengah tanpa baris kosong penutup di bawahnya
         raw_bytes.extend(ALIGN_CENTER)
         raw_bytes.extend(BOLD_ON)
         raw_bytes.extend(b"Terima Kasih\n")
         raw_bytes.extend(BOLD_OFF)
-        
-        # Langsung potong kertas rapat
         raw_bytes.extend(CUT_PAPER)
+
+        # --- BUAT NAMA FILE UNIK BERDASARKAN WAKTU ---
+        timestamp_file = datetime.now().strftime("%d%m%y_%H%M%S")
+        nama_file_bin = f"nota_{timestamp_file}.bin"
 
         # --- BUAT LINK WHATSAPP ---
         pesan_wa = f"*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n" \
@@ -256,7 +257,7 @@ with tab1:
             st.download_button(
                 label="🖨️ Cetak Nota ESC/POS",
                 data=bytes(raw_bytes),
-                file_name="nota_kasir.bin",
+                file_name=nama_file_bin,
                 mime="application/octet-stream",
                 use_container_width=True
             )
