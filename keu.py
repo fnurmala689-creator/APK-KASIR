@@ -14,7 +14,7 @@ DEFAULT_CSV_URL = ""  # Masukkan link CSV publish to web Google Spreadsheet Anda
 url_spreadsheet = st.sidebar.text_input(
     "🔗 Link CSV Google Spreadsheet", 
     value=DEFAULT_CSV_URL,
-    placeholder="https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pubhtml"
+    placeholder="https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?gid=0&single=true&output=csv"
 )
 
 # Inisialisasi Database Produk Default (Jika belum connect spreadsheet)
