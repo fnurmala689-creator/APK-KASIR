@@ -1,4 +1,4 @@
-﻿import streamlit as st
+import streamlit as st
 import pandas as pd
 from datetime import datetime
 import urllib.parse
@@ -8,40 +8,39 @@ st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 st.title("🏪 Kasir Toko Sembako (Multi-Level Pricing)")
 st.markdown("Aplikasi Kasir dengan Harga Berdasarkan Jenis Pelanggan & Cetak Teks RawBT")
 
-# --- KONEKSI KE GOOGLE SPREADSHEET ---
-DEFAULT_CSV_URL = ""  # Masukkan link CSV publish to web Google Spreadsheet Anda di sini
+# --- LINK SPREADSHEET PERMANEN ---
+PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
 
-url_spreadsheet = st.sidebar.text_input(
-    "🔗 Link CSV Google Spreadsheet", 
-    value=DEFAULT_CSV_URL,
-    placeholder="https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?gid=0&single=true&output=csv"
-)
-
-# Inisialisasi Database Produk Default (Jika belum connect spreadsheet)
+# Inisialisasi Database Produk & Otomatis Tarik dari Link Permanen saat pertama kali buka / refresh
 if "df_produk" not in st.session_state:
-    st.session_state.df_produk = pd.DataFrame({
-        "Nama Barang": [
-            "Beras Premium 1 Kg", 
-            "Minyak Goreng 1 Liter", 
-            "Gula Pasir 1 Kg", 
-            "Telur Ayam 1 Kg"
-        ],
-        "Harga Umum": [15000, 17500, 16000, 27000],
-        "Harga Reseller": [13500, 16000, 14500, 25000],
-        "Harga Pengusaha": [12500, 15000, 13500, 24000]
-    })
+    try:
+        st.session_state.df_produk = pd.read_csv(PERMANENT_CSV_URL)
+    except:
+        # Fallback cadangan jika koneksi gagal
+        st.session_state.df_produk = pd.DataFrame({
+            "Nama Barang": ["Beras Premium 1 Kg", "Minyak Goreng 1 Liter"],
+            "Harga Umum": [15000, 17500],
+            "Harga Reseller": [13500, 16000],
+            "Harga Pengusaha": [12500, 15000]
+        })
 
-# Tombol untuk menyinkronkan data dari spreadsheet
-if st.sidebar.button("🔄 Sinkronkan Data dari Spreadsheet"):
-    if url_spreadsheet:
-        try:
-            df_cloud = pd.read_csv(url_spreadsheet)
-            st.session_state.df_produk = df_cloud
-            st.sidebar.success("Berhasil memuat data terbaru dari Google Sheets!")
-        except Exception as e:
-            st.sidebar.error(f"Gagal memuat data: {e}")
-    else:
-        st.sidebar.warning("Silakan masukkan link CSV spreadsheet terlebih dahulu.")
+# Tombol untuk memperbarui/sinkronkan data jika sewaktu-waktu harga di spreadsheet berubah
+if st.sidebar.button("🔄 Sinkronkan Ulang Data dari Spreadsheet"):
+    try:
+        df_cloud = pd.read_csv(PERMANENT_CSV_URL)
+        df_cloud.columns = df_cloud.columns.str.strip()
+        st.session_state.df_produk = df_cloud
+        st.sidebar.success("Berhasil memperbarui data dari Google Sheets!")
+    except Exception as e:
+        st.sidebar.error(f"Gagal memuat data: {e}")
+
+# Pastikan nama kolom standar aman
+df_aktif_check = st.session_state.df_produk.copy()
+df_aktif_check.columns = df_aktif_check.columns.str.strip()
+
+# Deteksi nama kolom produk secara fleksibel
+kolom_nama_opsi = ["Nama Barang", "nama barang", "Nama", "nama", "Produk", "produk"]
+kolom_nama_barang = next((col for col in kolom_nama_opsi if col in df_aktif_check.columns), df_aktif_check.columns[0])
 
 # Inisialisasi keranjang belanja
 if "keranjang" not in st.session_state:
@@ -52,7 +51,7 @@ tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Kelola Daftar Harga"])
 with tab2:
     st.subheader("Daftar Barang & Harga Bertingkat (Database)")
     st.dataframe(st.session_state.df_produk, use_container_width=True)
-    st.info("💡 Ubah data harga langsung di Google Spreadsheet Anda, lalu klik tombol 'Sinkronkan Data dari Spreadsheet' di menu samping kiri.")
+    st.info("💡 Data di atas terhubung otomatis dari Google Spreadsheet Anda. Jika mengubah harga di spreadsheet, klik tombol 'Sinkronkan Ulang Data' di menu samping kiri.")
 
 with tab1:
     st.subheader("1. Pilih Jenis Pelanggan & Tambah Barang")
@@ -63,31 +62,28 @@ with tab1:
         ["Umum", "Reseller", "Pengusaha"]
     )
     
-    # Tentukan kolom harga yang akan dipakai berdasarkan pilihan
+    # Deteksi kolom harga fleksibel di spreadsheet
     kolom_harga_pilihan = f"Harga {jenis_pelanggan}"
+    if kolom_harga_pilihan not in df_aktif_check.columns:
+        kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_aktif_check.columns else df_aktif_check.columns[1]
     
     keyword_cari = st.text_input("🔍 Cari nama barang:", placeholder="Contoh: minyak, beras, gula...")
     
-    df_produk_aktif = st.session_state.df_produk.copy()
+    df_produk_aktif = df_aktif_check.copy()
     
     if keyword_cari:
         df_produk_aktif = df_produk_aktif[
-            df_produk_aktif["Nama Barang"].str.contains(keyword_cari, case=False, na=False)
+            df_produk_aktif[kolom_nama_barang].astype(str).str.contains(keyword_cari, case=False, na=False)
         ]
     
     if len(df_produk_aktif) > 0:
         col_input1, col_input2, col_input3 = st.columns([2, 1, 1])
         
         with col_input1:
-            pilihan_barang = st.selectbox("Pilih Barang:", df_produk_aktif["Nama Barang"])
-            data_terpilih = df_produk_aktif[df_produk_aktif["Nama Barang"] == pilihan_barang].iloc[0]
+            pilihan_barang = st.selectbox("Pilih Barang:", df_produk_aktif[kolom_nama_barang])
+            data_terpilih = df_produk_aktif[df_produk_aktif[kolom_nama_barang] == pilihan_barang].iloc[0]
             
-            # Ambil harga otomatis sesuai level pelanggan yang dipilih
-            if kolom_harga_pilihan in data_terpilih:
-                harga_otomatis = int(data_terpilih[kolom_harga_pilihan])
-            else:
-                harga_otomatis = int(data_terpilih["Harga Umum"]) # Fallback aman
-                
+            harga_otomatis = int(data_terpilih[kolom_harga_pilihan])
             st.caption(f"Harga Satuan ({jenis_pelanggan}): Rp {harga_otomatis:,.0f}".replace(',', '.'))
         
         with col_input2:
