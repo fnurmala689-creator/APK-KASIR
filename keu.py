@@ -34,7 +34,6 @@ with tab2:
     st.subheader("Daftar Barang & Harga Bertingkat (Google Sheets)")
     st.info("💡 Data di bawah terhubung otomatis dari Google Spreadsheet Anda.")
     
-    # --- PANEL PENCARIAN DI TAB DAFTAR HARGA ---
     search_database = st.text_input("🔍 Cari produk di database:", placeholder="Ketik nama barang yang ingin dicari...", key="search_db")
     
     df_database_tampil = df_produk.copy()
@@ -128,10 +127,10 @@ with tab1:
         lines_preview = []
         lines_preview.append("TOKO JABON KIDUL SEPUR")
         lines_preview.append("Jabon - Jombang")
-        lines_preview.append("Tel. 0857 3395 8305")
+        lines_preview.append("Telp. 0857 3395 8305")
         lines_preview.append("-" * printer_width)
-        lines_preview.append(f"Tgl : {waktu_sekarang}")
-        lines_preview.append(f"Plg : {nama_pembeli} ({jenis_pelanggan})")
+        lines_preview.append(f"Tanggal : {waktu_sekarang}")
+        lines_preview.append(f"Kepada : {nama_pembeli} ({jenis_pelanggan})")
         lines_preview.append("-" * printer_width)
 
         for item in st.session_state.keranjang:
@@ -160,11 +159,10 @@ with tab1:
         lines_preview.append(add_row_preview("Tunai", tunai_str))
         lines_preview.append(add_row_preview("Kembalian", kembalian_str))
         lines_preview.append("-" * printer_width)
-        lines_preview.append("Terima Kasih")
+        lines_preview.append("Terima Kasih & Semoga Berkah")
 
         teks_preview_html = "\n".join(lines_preview)
 
-        # Tampilkan kotak pratinjau bergaya struk kasir
         st.markdown(f"""
             <div style="background-color: #f8f9fa; border: 1px dashed #6c757d; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; font-size: 13px; color: #000; max-width: 400px; margin: 0 auto; text-align: center;">
 {teks_preview_html}
@@ -173,13 +171,13 @@ with tab1:
 
         st.write("")
 
-        # --- PEMBUATAN BYTE ESC/POS UNTUK RAWBT ---
+        # --- PEMBUATAN BYTE ESC/POS UNTUK RAWBT (DIPERAPI JARAK BAWAHNYA) ---
         INIT = b'\x1b\x40'
         ALIGN_CENTER = b'\x1b\x61\x01'
         ALIGN_LEFT = b'\x1b\x61\x00'
         BOLD_ON = b'\x1b\x45\x01'
         BOLD_OFF = b'\x1b\x45\x00'
-        CUT_PAPER = b'\x1d\x56\x41\x10'
+        CUT_PAPER = b'\x1d\x56\x41\x03' # Diubah agar potong kertas pas dan rapi
 
         raw_bytes = bytearray()
         raw_bytes.extend(INIT)
@@ -194,10 +192,10 @@ with tab1:
 
         add_line("TOKO JABON KIDUL SEPUR", ALIGN_CENTER, bold=True)
         add_line("Jabon - Jombang", ALIGN_CENTER)
-        add_line("Tel. 0857 3395 8305", ALIGN_CENTER)
+        add_line("Telp. 0857 3395 8305", ALIGN_CENTER)
         add_line("-" * printer_width, ALIGN_CENTER)
-        add_line(f"Tgl : {waktu_sekarang}", ALIGN_LEFT)
-        add_line(f"Plg : {nama_pembeli} ({jenis_pelanggan})", ALIGN_LEFT)
+        add_line(f"Tanggal : {waktu_sekarang}", ALIGN_LEFT)
+        add_line(f"Kepada : {nama_pembeli} ({jenis_pelanggan})", ALIGN_LEFT)
         add_line("-" * printer_width, ALIGN_CENTER)
 
         for item in st.session_state.keranjang:
@@ -223,15 +221,15 @@ with tab1:
         add_row_bytes("Tunai", tunai_str)
         add_row_bytes("Kembalian", kembalian_str)
         add_line("-" * printer_width, ALIGN_CENTER)
-        add_line("Terima Kasih", ALIGN_CENTER, bold=True)
-        add_line("\n\n")
+        add_line("Terima Kasih & Semoga Berkah", ALIGN_CENTER, bold=True)
+        add_line("\n") # Spasi secukupnya sebelum terpotong
         raw_bytes.extend(CUT_PAPER)
 
         # --- BUAT LINK WHATSAPP ---
         pesan_wa = f"*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n" \
                    f"----------------------------------\n" \
                    f"Tgl : {waktu_sekarang}\n" \
-                   f"Plg : {nama_pembeli} ({jenis_pelanggan})\n" \
+                   f"Kepada : {nama_pembeli} ({jenis_pelanggan})\n" \
                    f"----------------------------------\n"
         for item in st.session_state.keranjang:
             pesan_wa += f"• {item['Nama Barang']}\n  {item['Harga Satuan']:,.0f} x {item['Qty']} = *Rp {item['Subtotal']:,.0f}*\n\n".replace(',', '.')
@@ -240,7 +238,7 @@ with tab1:
                     f"Tunai    : Rp {uang_tunai:,.0f}\n" \
                     f"Kembalian: Rp {uang_kembalian:,.0f}\n" \
                     f"----------------------------------\n" \
-                    f"Terima Kasih Telah Berbelanja!".replace(',', '.')
+                    f"Terima Kasih & Semoga Berkah".replace(',', '.')
         
         encoded_wa = urllib.parse.quote(pesan_wa)
         whatsapp_url = f"https://api.whatsapp.com/send?text={encoded_wa}"
