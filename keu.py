@@ -49,7 +49,7 @@ with tab1:
     
     jenis_pelanggan = st.selectbox(
         "🏷️ Pilih Level Harga / Jenis Pelanggan:", 
-        ["Umum", "Reseller", "Pengusaha"]
+        ["Umum", "Bakul", "Umum Antar", "Usaha"]
     )
     
     kolom_harga_pilihan = f"Harga {jenis_pelanggan}"
