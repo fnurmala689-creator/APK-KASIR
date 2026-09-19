@@ -42,14 +42,13 @@ if "keranjang" not in st.session_state:
 if "scanned_barcode" not in st.session_state:
     st.session_state.scanned_barcode = ""
 
-# Tangkap hasil scan dari URL parameter jika ada
+# Tangkap hasil scan dari URL parameter
 query_params = st.query_params
 if "scan" in query_params:
     val_scan = query_params["scan"]
     if val_scan != st.session_state.scanned_barcode:
         st.session_state.scanned_barcode = val_scan
         st.query_params.clear()
-        st.rerun()
 
 tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
 
@@ -154,7 +153,7 @@ with tab1:
     """
     components.html(search_scanner_html, height=140)
 
-    # --- 5. HASIL PENCARIAN & PEMROSESAN KE KERANJANG ---
+    # --- 5. HASIL PENCARIAN & PEMROSESAN KE KERANJANG (Tanpa Rerun Paksa) ---
     if st.session_state.scanned_barcode:
         query_val = st.session_state.scanned_barcode.strip()
         df_match = pd.DataFrame()
@@ -163,7 +162,7 @@ with tab1:
         if kolom_barcode and kolom_barcode in df_produk.columns:
             df_match = df_produk[df_produk[kolom_barcode].astype(str).str.strip() == query_val]
 
-        # Jika tidak ketemu di barcode, cocokkan dengan nama barang (ketik manual)
+        # Jika tidak ketemu di barcode, cocokkan dengan nama barang
         if len(df_match) == 0:
             df_match = df_produk[df_produk[kolom_nama_barang].astype(str).str.contains(query_val, case=False, na=False)]
 
@@ -191,7 +190,6 @@ with tab1:
 
                 st.success(f"✅ Berhasil masuk keranjang: **{nama_barang_ditemukan}** (Rp {harga_otomatis:,.0f})".replace(',', '.'))
                 st.session_state.scanned_barcode = ""
-                st.rerun()
             else:
                 st.info(f"Ditemukan beberapa produk untuk '{query_val}'. Silakan pilih di bawah ini:")
                 for idx, row in df_match.iterrows():
@@ -213,12 +211,10 @@ with tab1:
                                 "Subtotal": hg
                             })
                         st.session_state.scanned_barcode = ""
-                        st.rerun()
         else:
             st.warning(f"⚠️ Barang dengan kata kunci '{query_val}' tidak ditemukan di database.")
             if st.button("🔄 Reset Pencarian"):
                 st.session_state.scanned_barcode = ""
-                st.rerun()
 
     st.divider()
 
@@ -239,7 +235,6 @@ with tab1:
 
         if st.button("🗑️ Kosongkan Keranjang", type="secondary"):
             st.session_state.keranjang = []
-            st.rerun()
 
         uang_kembalian = uang_tunai - total_belanja_semua
 
