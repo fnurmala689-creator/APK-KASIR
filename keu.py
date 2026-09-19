@@ -7,7 +7,7 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 
 st.title("🏪 Kasir Toko Sembako (ESC/POS & Barcode Scanner)")
-st.markdown("Aplikasi Kasir Cepat dengan Scanner Kamera Belakang Ringkas, Pratinjau, Cetak ESC/POS & WhatsApp")
+st.markdown("Aplikasi Kasir Cepat dengan Tombol Scanner Kamera Belakang & Pencocokan Barcode Otomatis")
 
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
@@ -36,6 +36,19 @@ kolom_barcode = next((col for col in kolom_barcode_opsi if col in df_produk.colu
 if "keranjang" not in st.session_state:
     st.session_state.keranjang = []
 
+# Inisialisasi state untuk menampung hasil scan barcode
+if "scanned_barcode" not in st.session_state:
+    st.session_state.scanned_barcode = ""
+
+# Tangkap hasil scan dari URL parameter jika ada
+query_params = st.query_params
+if "scan" in query_params:
+    val_scan = query_params["scan"]
+    if val_scan != st.session_state.scanned_barcode:
+        st.session_state.scanned_barcode = val_scan
+        st.query_params.clear()
+        st.rerun()
+
 tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
 
 with tab2:
@@ -63,110 +76,74 @@ with tab1:
     if kolom_harga_pilihan not in df_produk.columns:
         kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
     
-    # --- KOMPONEN SCANNER KAMERA BELAKANG YANG STABIL & RINGKAS ---
-    st.markdown("📷 **Scanner Barcode Cepat (Kamera Belakang)**")
+    # --- TOMBOL SCANNER KAMERA BELAKANG YANG RINGKAS & STABIL ---
+    st.markdown("📷 **Scanner Barcode (Kamera Belakang)**")
     
-    # Menggunakan HTML/JS dengan input tersembunyi yang langsung mensinkronkan hasil scan ke Streamlit
-    scanner_stable_html = """
-    <div style="margin-bottom: 10px;">
-        <div style="display: flex; gap: 8px; align-items: center;">
-            <button id="cam-toggle-btn" onclick="toggleCam()" style="background-color: #2baf2b; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">📷 Buka Kamera Scanner</button>
-            <span id="status-scan" style="font-size: 12px; color: #666; font-family: sans-serif;">Kamera non-aktif</span>
-        </div>
-        <div id="reader-wrapper" style="display: none; margin-top: 10px; max-width: 320px; border: 2px solid #2baf2b; border-radius: 8px; padding: 6px; background: #fff;">
-            <div id="reader" style="width: 100%;"></div>
-            <button onclick="stopCam()" style="background-color: #ff4b4b; color: white; border: none; padding: 4px 10px; border-radius: 4px; font-weight: bold; cursor: pointer; font-size: 11px; margin-top: 6px; width: 100%;">Tutup Kamera</button>
-        </div>
+    scanner_html = f"""
+    <div>
+        <button id="open-btn" onclick="startScanner()" style="background-color: #2baf2b; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">📷 Buka Kamera Scanner</button>
+        <button id="close-btn" onclick="stopScanner()" style="background-color: #ff4b4b; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; display: none;">🛑 Tutup Kamera</button>
+        
+        <div id="reader" style="width: 100%; max-width: 320px; margin-top: 10px;"></div>
     </div>
 
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script>
-        let scannerInstance = null;
-        let isCamActive = false;
-
-        function toggleCam() {
-            if (!isCamActive) {
-                startCam();
-            } else {
-                stopCam();
-            }
-        }
-
-        function startCam() {
-            const wrapper = document.getElementById('reader-wrapper');
-            const btn = document.getElementById('cam-toggle-btn');
-            const statusTxt = document.getElementById('status-scan');
-
-            wrapper.style.display = 'block';
-            btn.innerText = "⏳ Membuka...";
-            btn.style.backgroundColor = "#ffa500";
-
-            scannerInstance = new Html5Qrcode("reader");
-            scannerInstance.start(
-                { facingMode: "environment" },
-                { fps: 15, qrbox: { width: 220, height: 110 } },
-                (decodedText) => {
-                    // Sukses scan: set nilai ke input Streamlit utama dan trigger event input
-                    setStreamlitInput(decodedText);
-                    stopCam();
-                },
-                (err) => {}
-            ).then(() => {
-                isCamActive = true;
-                btn.innerText = "📷 Tutup Kamera";
-                btn.style.backgroundColor = "#ff4b4b";
-                statusTxt.innerText = "Kamera aktif, arahkan ke barcode...";
-            }).catch(err => {
+        let html5QrCode;
+        function startScanner() {{
+            document.getElementById('open-btn').style.display = 'none';
+            document.getElementById('close-btn').style.display = 'block';
+            
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start(
+                {{ facingMode: "environment" }},
+                {{ fps: 15, qrbox: {{ width: 220, height: 110 }} }},
+                (decodedText, decodedResult) => {{
+                    stopScanner();
+                    // Alihkan ke URL dengan membawa parameter scan agar otomatis ditangkap Streamlit
+                    window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
+                }},
+                (errorMessage) => {{}}
+            ).catch((err) => {{
                 alert("Gagal membuka kamera belakang: " + err);
-                wrapper.style.display = 'none';
-                btn.innerText = "📷 Buka Kamera Scanner";
-                btn.style.backgroundColor = "#2baf2b";
-                statusTxt.innerText = "Gagal membuka kamera.";
-            });
+                stopScanner();
+            }});
         }
-
-        function stopCam() {
-            if (scannerInstance && isCamActive) {
-                scannerInstance.stop().then(() => {
-                    isCamActive = false;
-                    document.getElementById('reader-wrapper').style.display = 'none';
-                    const btn = document.getElementById('cam-toggle-btn');
-                    btn.innerText = "📷 Buka Kamera Scanner";
-                    btn.style.backgroundColor = "#2baf2b";
-                    document.getElementById('status-scan').innerText = "Kamera ditutup.";
-                }).catch(err => {});
-            } else {
-                document.getElementById('reader-wrapper').style.display = 'none';
-                isCamActive = false;
-                const btn = document.getElementById('cam-toggle-btn');
-                btn.innerText = "📷 Buka Kamera Scanner";
-                btn.style.backgroundColor = "#2baf2b";
-            }
-        }
-
-        function setStreamlitInput(val) {
-            // Mencari elemen input teks Streamlit di halaman untuk diisi otomatis
-            const inputs = parent.document.querySelectorAll('input[type="text"]');
-            for (let input of inputs) {
-                // Cari input pencarian kasir kita
-                if (input.placeholder && input.placeholder.includes("Ketik nama barang")) {
-                    input.value = val;
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    break;
-                }
-            }
-        }
+        
+        function stopScanner() {{
+            if (html5QrCode) {{
+                html5QrCode.stop().then(() => {{
+                    document.getElementById('open-btn').style.display = 'block';
+                    document.getElementById('close-btn').style.display = 'none';
+                }}).catch(err => {{
+                    document.getElementById('open-btn').style.display = 'block';
+                    document.getElementById('close-btn').style.display = 'none';
+                }});
+            }} else {{
+                document.getElementById('open-btn').style.display = 'block';
+                document.getElementById('close-btn').style.display = 'none';
+            }}
+        }}
     </script>
     """
-    components.html(scanner_stable_html, height=190)
+    components.html(scanner_html, height=260)
 
-    # Input pencarian utama (bisa diketik manual atau terisi otomatis saat kamera sukses melakukan scan)
-    keyword_cari = st.text_input("🔍 Cari nama barang atau Scan Barcode:", placeholder="Ketik nama barang / hasil scan barcode...")
+    # Kotak input pencarian (Nilai otomatis terisi jika ada hasil scan dari kamera)
+    keyword_cari = st.text_input(
+        "🔍 Cari nama barang atau Scan Barcode:", 
+        value=st.session_state.scanned_barcode, 
+        placeholder="Ketik nama barang / hasil scan barcode..."
+    )
     
+    # Sinkronisasi manual jika user mengetik ulang
+    if keyword_cari != st.session_state.scanned_barcode and not query_params:
+        st.session_state.scanned_barcode = keyword_cari
+
     df_produk_aktif = df_produk.copy()
     
     if keyword_cari:
         if kolom_barcode and kolom_barcode in df_produk_aktif.columns:
+            # Pencocokan persis atau mengandung teks pada kolom barcode
             match_barcode = df_produk_aktif[df_produk_aktif[kolom_barcode].astype(str).str.contains(keyword_cari, case=False, na=False)]
             if len(match_barcode) > 0:
                 df_produk_aktif = match_barcode
@@ -205,9 +182,14 @@ with tab1:
                 "Harga Satuan": harga_otomatis,
                 "Subtotal": subtotal
             })
+            # Reset barcode yang tersimpan agar siap untuk scan item berikutnya
+            st.session_state.scanned_barcode = ""
             st.toast(f"Berhasil menambahkan {pilihan_barang} ({jenis_pelanggan})!", icon="✅")
     else:
         st.warning("Barang atau Barcode tidak ditemukan di database.")
+        if st.button("🔄 Reset Pencarian"):
+            st.session_state.scanned_barcode = ""
+            st.rerun()
 
     st.divider()
     st.subheader("2. Keranjang Belanja")
