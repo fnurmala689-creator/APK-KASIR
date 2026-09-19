@@ -2,11 +2,12 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import urllib.parse
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 
 st.title("🏪 Kasir Toko Sembako")
-st.markdown("Aplikasi Kasir Cepat & Praktis")
+st.markdown("Aplikasi Kasir Cepat dengan Scanner Kamera Belakang")
 
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
@@ -35,6 +36,19 @@ kolom_barcode = next((col for col in kolom_barcode_opsi if col in df_produk.colu
 if "keranjang" not in st.session_state:
     st.session_state.keranjang = []
 
+# Inisialisasi state untuk menampung hasil scan barcode
+if "scanned_barcode" not in st.session_state:
+    st.session_state.scanned_barcode = ""
+
+# Tangkap hasil scan dari URL parameter jika ada
+query_params = st.query_params
+if "scan" in query_params:
+    val_scan = query_params["scan"]
+    if val_scan != st.session_state.scanned_barcode:
+        st.session_state.scanned_barcode = val_scan
+        st.query_params.clear()
+        st.rerun()
+
 tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
 
 with tab2:
@@ -62,17 +76,76 @@ with tab1:
     if kolom_harga_pilihan not in df_produk.columns:
         kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
     
-    # --- KOTAK PENCARIAN UTAMA (SUPPORT KETIK & SCANNER BARCODE FISIK) ---
+    # --- TOMBOL SCANNER KAMERA BELAKANG YANG RAPI & BERSIH ---
+    st.markdown("📷 **Scanner Kamera Belakang**")
+    
+    scanner_html = f"""
+    <div style="background: #f1f3f5; padding: 10px; border-radius: 8px; border: 1px solid #ced4da; margin-bottom: 15px;">
+        <div style="display: flex; gap: 10px; align-items: center;">
+            <button id="open-btn" onclick="startScanner()" style="background-color: #2baf2b; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">📷 Buka Kamera</button>
+            <button id="close-btn" onclick="stopScanner()" style="background-color: #ff4b4b; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; display: none;">🛑 Tutup Kamera</button>
+            <span id="info-txt" style="font-size: 12px; color: #495057;">Tekan tombol untuk scan barcode produk</span>
+        </div>
+        <div id="reader" style="width: 100%; max-width: 300px; margin-top: 10px;"></div>
+    </div>
+
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script>
+        let html5QrCode;
+        function startScanner() {{
+            document.getElementById('open-btn').style.display = 'none';
+            document.getElementById('close-btn').style.display = 'block';
+            document.getElementById('info-txt').innerText = "Arahkan kamera ke barcode...";
+            
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start(
+                {{ facingMode: "environment" }},
+                {{ fps: 15, qrbox: {{ width: 200, height: 100 }} }},
+                (decodedText, decodedResult) => {{
+                    stopScanner();
+                    window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
+                }},
+                (errorMessage) => {{}}
+            ).catch((err) => {{
+                alert("Gagal membuka kamera: " + err);
+                stopScanner();
+            }});
+        }}
+        
+        function stopScanner() {{
+            if (html5QrCode) {{
+                html5QrCode.stop().then(() => {{
+                    document.getElementById('open-btn').style.display = 'block';
+                    document.getElementById('close-btn').style.display = 'none';
+                    document.getElementById('info-txt').innerText = "Kamera ditutup.";
+                }}).catch(err => {{
+                    document.getElementById('open-btn').style.display = 'block';
+                    document.getElementById('close-btn').style.display = 'none';
+                }});
+            }} else {{
+                document.getElementById('open-btn').style.display = 'block';
+                document.getElementById('close-btn').style.display = 'none';
+            }}
+        }}
+    </script>
+    """
+    components.html(scanner_html, height=140)
+
+    # Kotak pencarian utama yang bersih
     keyword_cari = st.text_input(
         "🔍 Cari Nama Barang atau Scan Barcode:", 
-        placeholder="Ketik nama / scan barcode langsung di sini..."
+        value=st.session_state.scanned_barcode,
+        placeholder="Ketik nama atau hasil scan barcode..."
     )
+    
+    # Sinkronisasi manual jika user mengetik sendiri
+    if keyword_cari != st.session_state.scanned_barcode and not query_params:
+        st.session_state.scanned_barcode = keyword_cari
 
     df_produk_aktif = df_produk.copy()
     
     if keyword_cari:
         if kolom_barcode and kolom_barcode in df_produk_aktif.columns:
-            # Cek apakah cocok dengan barcode terlebih dahulu
             match_barcode = df_produk_aktif[df_produk_aktif[kolom_barcode].astype(str).str.contains(keyword_cari, case=False, na=False)]
             if len(match_barcode) > 0:
                 df_produk_aktif = match_barcode
@@ -111,9 +184,13 @@ with tab1:
                 "Harga Satuan": harga_otomatis,
                 "Subtotal": subtotal
             })
+            st.session_state.scanned_barcode = ""
             st.toast(f"Berhasil menambahkan {pilihan_barang} ({jenis_pelanggan})!", icon="✅")
     else:
         st.warning("Barang atau Barcode tidak ditemukan di database.")
+        if st.button("🔄 Reset Pencarian"):
+            st.session_state.scanned_barcode = ""
+            st.rerun()
 
     st.divider()
     st.subheader("2. Keranjang Belanja")
