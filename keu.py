@@ -100,7 +100,6 @@ with tab1:
                 {{ fps: 15, qrbox: {{ width: 220, height: 110 }} }},
                 (decodedText, decodedResult) => {{
                     stopScanner();
-                    // Alihkan ke URL dengan membawa parameter scan agar otomatis ditangkap Streamlit
                     window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
                 }},
                 (errorMessage) => {{}}
@@ -108,7 +107,7 @@ with tab1:
                 alert("Gagal membuka kamera belakang: " + err);
                 stopScanner();
             }});
-        }
+        }}
         
         function stopScanner() {{
             if (html5QrCode) {{
@@ -143,7 +142,6 @@ with tab1:
     
     if keyword_cari:
         if kolom_barcode and kolom_barcode in df_produk_aktif.columns:
-            # Pencocokan persis atau mengandung teks pada kolom barcode
             match_barcode = df_produk_aktif[df_produk_aktif[kolom_barcode].astype(str).str.contains(keyword_cari, case=False, na=False)]
             if len(match_barcode) > 0:
                 df_produk_aktif = match_barcode
@@ -182,7 +180,6 @@ with tab1:
                 "Harga Satuan": harga_otomatis,
                 "Subtotal": subtotal
             })
-            # Reset barcode yang tersimpan agar siap untuk scan item berikutnya
             st.session_state.scanned_barcode = ""
             st.toast(f"Berhasil menambahkan {pilihan_barang} ({jenis_pelanggan})!", icon="✅")
     else:
