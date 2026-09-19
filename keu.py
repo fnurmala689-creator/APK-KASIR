@@ -154,12 +154,6 @@ with tab1:
     """
     components.html(search_scanner_html, height=140)
 
-    # Sinkronisasi input teks Streamlit
-    keyword_input = st.text_input("Atau ketik cepat di sini:", value=st.session_state.scanned_barcode, placeholder="Ketik nama atau kode...", label_visibility="collapsed")
-    
-    if keyword_input != st.session_state.scanned_barcode:
-        st.session_state.scanned_barcode = keyword_input
-
     # --- 5. HASIL PENCARIAN & PEMROSESAN KE KERANJANG ---
     if st.session_state.scanned_barcode:
         query_val = st.session_state.scanned_barcode.strip()
