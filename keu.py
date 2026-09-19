@@ -197,6 +197,7 @@ def kosongkan_keranjang():
     st.session_state.konfirmasi_kosong = False
     st.session_state.diskon_input = 0
     st.session_state.ongkir_input = 0
+    st.session_state.arisan_input = 0
     st.session_state.editor_counter += 1
 
 
@@ -238,6 +239,11 @@ with tab2:
         df_tampil = df_tampil[mask]
         st.caption(f"Menampilkan {len(df_tampil)} produk untuk pencarian: `{kata}`")
         st.button("✖️ Hapus pencarian", on_click=hapus_pencarian_db)
+    # Tampilkan kolom harga dengan titik ribuan (15000 -> 15.000)
+    df_tampil = df_tampil.copy()
+    for c in df_tampil.columns:
+        if c.lower().startswith("harga"):
+            df_tampil[c] = df_tampil[c].map(rp)
     st.dataframe(df_tampil, use_container_width=True)
 
 # ================= TAB 1 =================
@@ -255,7 +261,7 @@ with tab1:
     kamera_aktif = st.session_state.get("toggle_kamera_box", False)
     expander_terbuka = len(st.session_state.keranjang) == 0 or kamera_aktif
 
-    with st.expander("🔍 Klik untuk Input", expanded=expander_terbuka):
+    with st.expander("🔍 Klik untuk Cari Barang / Buka Scanner Kamera", expanded=expander_terbuka):
         st.text_input(
             "Ketik nama barang / barcode lalu Enter:",
             placeholder="Contoh: Beras atau 899111",
@@ -334,8 +340,12 @@ with tab1:
         df_keranjang = pd.DataFrame(st.session_state.keranjang)
         df_keranjang.index = range(1, len(df_keranjang) + 1)  # nomor urut mulai dari 1
         df_keranjang.index.name = "No"
+        # Salinan khusus tampilan: harga dengan titik ribuan (data asli tetap angka)
+        df_tampil_keranjang = df_keranjang.copy()
+        df_tampil_keranjang["Harga Satuan"] = df_tampil_keranjang["Harga Satuan"].map(rp)
+        df_tampil_keranjang["Subtotal"] = df_tampil_keranjang["Subtotal"].map(rp)
         st.data_editor(
-            df_keranjang,
+            df_tampil_keranjang,
             key=f"editor_keranjang_{st.session_state.editor_counter}",
             on_change=terapkan_edit_qty,
             disabled=["Nama Barang", "Harga Satuan", "Subtotal"],
@@ -344,15 +354,15 @@ with tab1:
                     "Qty", min_value=0, step=1, format="%d",
                     help="Klik lalu ketik jumlah. Isi 0 untuk menghapus barang.",
                 ),
-                "Harga Satuan": st.column_config.NumberColumn("Harga Satuan", format="%d"),
-                "Subtotal": st.column_config.NumberColumn("Subtotal", format="%d"),
+                "Harga Satuan": st.column_config.TextColumn("Harga Satuan"),
+                "Subtotal": st.column_config.TextColumn("Subtotal"),
             },
             use_container_width=True,
         )
 
         subtotal_barang = int(df_keranjang["Subtotal"].sum())
 
-        col_dk1, col_dk2 = st.columns(2)
+        col_dk1, col_dk2, col_dk3 = st.columns(3)
         with col_dk1:
             diskon_input = st.number_input(
                 "Diskon (Rp)", min_value=0, value=0, step=500, key="diskon_input",
@@ -363,12 +373,17 @@ with tab1:
                 "Ongkir (Rp)", min_value=0, value=0, step=500, key="ongkir_input",
                 help="Kosongkan / isi 0 kalau tidak ada ongkir. Tidak akan dicetak di nota jika 0.",
             ))
+        with col_dk3:
+            arisan = int(st.number_input(
+                "Arisan (Rp)", min_value=0, value=0, step=1000, key="arisan_input",
+                help="Isi nominal arisan secara manual. Kosongkan / isi 0 kalau tidak ada. Tidak akan dicetak di nota jika 0.",
+            ))
 
         diskon = min(int(diskon_input), subtotal_barang)
         if int(diskon_input) > subtotal_barang:
             st.warning("⚠️ Diskon melebihi total belanja, jadi dihitung maksimal sebesar total belanja.")
 
-        total_belanja_semua = subtotal_barang - diskon + ongkir
+        total_belanja_semua = subtotal_barang - diskon + ongkir + arisan
         st.metric(label="TOTAL", value=f"Rp {rp(total_belanja_semua)}")
 
         col_aksi1, col_aksi2 = st.columns(2)
@@ -425,12 +440,14 @@ with tab1:
 
         # Rincian (Subtotal/Diskon/Ongkir) hanya muncul kalau ada diskon atau ongkir
         rincian = []
-        if diskon > 0 or ongkir > 0:
+        if diskon > 0 or ongkir > 0 or arisan > 0:
             rincian.append(("Subtotal", rp(subtotal_barang)))
             if diskon > 0:
                 rincian.append(("Diskon", "-" + rp(diskon)))
             if ongkir > 0:
                 rincian.append(("Ongkir", rp(ongkir)))
+            if arisan > 0:
+                rincian.append(("Arisan", rp(arisan)))
 
 
         # --- ESC/POS ---
@@ -510,7 +527,7 @@ with tab1:
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             st.download_button(
-                label="🖨️ Cetak Nota",
+                label="🖨️ Cetak Nota ESC/POS",
                 data=bytes(raw_bytes),
                 file_name=nama_file_bin,
                 mime="application/octet-stream",
