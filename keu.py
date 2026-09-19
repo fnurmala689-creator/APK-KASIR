@@ -310,7 +310,7 @@ with tab1:
             },
             use_container_width=True,
         )
-        st.caption("💡 Klik kolom Qty untuk mengetik jumlah. Isi 0 untuk menghapus barang dari keranjang.")
+
 
         subtotal_barang = int(df_keranjang["Subtotal"].sum())
 
@@ -354,7 +354,7 @@ with tab1:
         with col_h2:
             st.write("")
             st.button(
-                "❌ Hapus Barang Ini",
+                "❌ Hapus Barang",
                 on_click=hapus_barang,
                 args=(key_hapus,),
                 use_container_width=True,
