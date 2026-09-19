@@ -5,7 +5,23 @@ from datetime import datetime
 import urllib.parse
 from streamlit_qrcode_scanner import qrcode_scanner
 
-st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🤞")
+st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🤞", layout="wide")
+
+# Kurangi ruang kosong di pinggir dan atas supaya muat lebih banyak di layar tablet
+st.markdown(
+    """
+    <style>
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        padding-left: 2rem;
+        padding-right: 2rem;
+        max-width: 100%;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 st.title("😊 TOKO JABON KIDUL SEPUR")
 st.markdown("Don't Forget to Pray")
@@ -239,7 +255,7 @@ with tab1:
     kamera_aktif = st.session_state.get("toggle_kamera_box", False)
     expander_terbuka = len(st.session_state.keranjang) == 0 or kamera_aktif
 
-    with st.expander("🔍 Klik untuk Cari Barang / Buka Scanner Kamera", expanded=expander_terbuka):
+    with st.expander("🔍 Klik untuk Input", expanded=expander_terbuka):
         st.text_input(
             "Ketik nama barang / barcode lalu Enter:",
             placeholder="Contoh: Beras atau 899111",
@@ -395,7 +411,6 @@ with tab1:
         uang_kembalian = uang_tunai - total_belanja_semua
 
         st.divider()
-        st.subheader("👀 Pratinjau (Preview) Nota")
 
         waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         printer_width = 32
@@ -417,40 +432,6 @@ with tab1:
             if ongkir > 0:
                 rincian.append(("Ongkir", rp(ongkir)))
 
-        lines = [
-            "TOKO JABON KIDUL SEPUR",
-            "Jabon - Jombang",
-            "Telp. 0857 3395 8305",
-            "-" * printer_width,
-            f"Tanggal : {waktu_sekarang}",
-            f"Kepada : {nama_pembeli} ({jenis_pelanggan})",
-            "-" * printer_width,
-        ]
-        for item in st.session_state.keranjang:
-            lines.append(item["Nama Barang"])
-            lines.append(baris_kiri_kanan(f"{rp(item['Harga Satuan'])} x {item['Qty']} item", rp(item["Subtotal"])))
-            lines.append("")
-        lines.append("-" * printer_width)
-        if rincian:
-            for lbl, val in rincian:
-                lines.append(baris_kiri_kanan(lbl, val))
-            lines.append("-" * printer_width)
-        lines += [
-            baris_kiri_kanan("Total", total_str),
-            baris_kiri_kanan("Tunai", tunai_str),
-            baris_kiri_kanan("Kembalian", kembalian_str),
-            "-" * printer_width,
-            "Terima Kasih & Semoga Berkah",
-        ]
-        teks_preview_html = "\n".join(lines)
-
-        st.markdown(f"""
-<div style="background-color: #f8f9fa; border: 1px dashed #6c757d; padding: 15px; border-radius: 8px; font-family: monospace; white-space: pre-wrap; font-size: 13px; color: #000; max-width: 400px; margin: 0 auto; text-align: center;">
-{teks_preview_html}
-</div>
-""", unsafe_allow_html=True)
-
-        st.write("")
 
         # --- ESC/POS ---
         INIT = b'\x1b\x40'
@@ -529,7 +510,7 @@ with tab1:
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             st.download_button(
-                label="🖨️ Cetak Nota ESC/POS",
+                label="🖨️ Cetak Nota",
                 data=bytes(raw_bytes),
                 file_name=nama_file_bin,
                 mime="application/octet-stream",
