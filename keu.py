@@ -50,14 +50,6 @@ if "scan" in query_params:
         st.session_state.scanned_barcode = val_scan
         st.query_params.clear()
         st.rerun()
-
-tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
-
-with tab2:
-    st.subheader("Daftar Barang & Harga Bertingkat (Google Sheets)")
-    st.info("💡 Pastikan ada kolom 'Barcode' di Google Spreadsheet Anda.")
-    
-    search_database = st.text_input("🔍 Cari produk di database:", placeholder="Ketik nama barang atau barcode...", key="search_db")
     
     df_database_tampil = df_produk.copy()
     if search_database:
