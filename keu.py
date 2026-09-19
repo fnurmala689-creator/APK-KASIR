@@ -39,23 +39,10 @@ kolom_barcode = next((col for col in kolom_barcode_opsi if col in df_produk.colu
 if "keranjang" not in st.session_state:
     st.session_state.keranjang = []
 
-if "keyword_pencarian" not in st.session_state:
-    st.session_state.keyword_pencarian = ""
-
-# Tangkap hasil scan dari kamera / URL parameter
-query_params = st.query_params
-if "scan" in query_params:
-    val_scan = query_params["scan"].strip()
-    st.session_state.keyword_pencarian = val_scan
-    st.query_params.clear()
-    st.rerun()
-
 tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
 
 with tab2:
     st.subheader("Daftar Barang & Harga Bertingkat (Google Sheets)")
-    st.info("💡 Pastikan ada kolom 'Barcode' di Google Spreadsheet Anda.")
-    
     search_database = st.text_input("🔍 Cari produk di database:", placeholder="Ketik nama barang atau barcode...", key="search_db")
     
     df_database_tampil = df_produk.copy()
@@ -78,12 +65,12 @@ with tab1:
     
     st.divider()
 
-    # --- 4. INPUT PENCARIAN & KAMERA SCANNER ---
+    # --- 4. INPUT PENCARIAN & KAMERA SCANNER (TANPA RELOAD HALAMAN) ---
     st.markdown("🔍 **Cari Nama Barang atau Gunakan Scanner Barcode:**")
 
+    # Menggunakan text_input Streamlit biasa untuk menerima ketikan atau hasil scan
     input_keyword = st.text_input(
         "Ketik nama barang / barcode lalu Enter:",
-        value=st.session_state.keyword_pencarian,
         placeholder="Contoh: Beras atau 899111",
         key="input_text_kasir"
     )
@@ -92,7 +79,7 @@ with tab1:
     with col_cam_btn1:
         buka_kamera = st.checkbox("📷 Buka Kamera Scanner", value=False, key="toggle_kamera_box")
 
-    # Komponen Kamera HTML (Begitu scan berhasil, langsung arahkan ke URL untuk masuk keranjang otomatis)
+    # Scanner HTML yang langsung mengetik hasil scan ke kotak input di atas secara mulus (tanpa reload URL)
     if buka_kamera:
         scanner_html = """
         <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #ced4da; text-align: center; margin-bottom: 10px;">
@@ -101,47 +88,44 @@ with tab1:
         </div>
         <script src="https://unpkg.com/html5-qrcode"></script>
         <script>
-            let html5QrCodeScanner = null;
             function onScanSuccess(decodedText, decodedResult) {
-                if (html5QrCodeScanner) {
-                    html5QrCodeScanner.stop().then(() => {
-                        window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
-                    }).catch(err => {
-                        window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
-                    });
-                } else {
-                    window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
+                // Cari kotak input Streamlit di halaman utama dan masukkan hasil scan secara otomatis
+                const inputs = window.parent.document.querySelectorAll('input[type="text"]');
+                for (let input of inputs) {
+                    if (input.placeholder && input.placeholder.includes("Contoh: Beras")) {
+                        input.value = decodedText;
+                        input.dispatchEvent(new Event('input', { bubbles: true }));
+                        // Simulasi tombol Enter
+                        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', charCode: 13, keyCode: 13, bubbles: true }));
+                        break;
+                    }
                 }
             }
             try {
-                html5QrCodeScanner = new Html5Qrcode("reader");
-                html5QrCodeScanner.start(
+                let html5QrCode = new Html5Qrcode("reader");
+                html5QrCode.start(
                     { facingMode: "environment" },
-                    { fps: 20, qrbox: { width: 250, height: 100 } },
+                    { fps: 15, qrbox: { width: 250, height: 100 } },
                     onScanSuccess,
                     (errorMessage) => {}
                 ).catch(err => { console.log(err); });
             } catch(e) {}
         </script>
         """
-        components.html(scanner_html, height=240)
+        components.html(scanner_html, height=220)
 
-    # Sinkronisasi input manual
-    if input_keyword != st.session_state.keyword_pencarian:
-        st.session_state.keyword_pencarian = input_keyword
-
-    # --- 5. PEMROSESAN OTOMATIS KE KERANJANG ---
-    if st.session_state.keyword_pencarian.strip():
-        query_val = st.session_state.keyword_pencarian.strip()
+    # --- 5. PEMROSESAN OTOMATIS LANGSUNG MASUK KERANJANG ---
+    keyword_aktif = input_keyword.strip()
+    if keyword_aktif:
         df_match = pd.DataFrame()
 
-        # Cocokkan dengan kolom barcode
+        # Cocokkan dengan kolom barcode terlebih dahulu
         if kolom_barcode and kolom_barcode in df_produk.columns:
-            df_match = df_produk[df_produk[kolom_barcode].astype(str).str.strip() == query_val]
+            df_match = df_produk[df_produk[kolom_barcode].astype(str).str.strip() == keyword_aktif]
 
         # Jika tidak ketemu di barcode, cocokkan dengan nama barang
         if len(df_match) == 0:
-            df_match = df_produk[df_produk[kolom_nama_barang].astype(str).str.contains(query_val, case=False, na=False)]
+            df_match = df_produk[df_produk[kolom_nama_barang].astype(str).str.contains(keyword_aktif, case=False, na=False)]
 
         if len(df_match) > 0:
             if len(df_match) == 1:
@@ -149,6 +133,7 @@ with tab1:
                 nama_barang_ditemukan = data_terpilih[kolom_nama_barang]
                 harga_otomatis = int(data_terpilih[kolom_harga_pilihan])
 
+                # Langsung masukkan ke keranjang
                 sudah_ada = False
                 for item in st.session_state.keranjang:
                     if item["Nama Barang"] == nama_barang_ditemukan and item["Harga Satuan"] == harga_otomatis:
@@ -165,14 +150,13 @@ with tab1:
                         "Subtotal": harga_otomatis
                     })
 
-                st.success(f"✅ Otomatis masuk keranjang: **{nama_barang_ditemukan}** (Rp {harga_otomatis:,.0f})".replace(',', '.'))
-                st.session_state.keyword_pencarian = ""
+                st.success(f"✅ Berhasil masuk keranjang: **{nama_barang_ditemukan}** (Rp {harga_otomatis:,.0f})".replace(',', '.'))
             else:
-                st.info(f"Ditemukan beberapa produk untuk '{query_val}'. Silakan pilih di bawah ini:")
+                st.info(f"Ditemukan beberapa produk untuk '{keyword_aktif}':")
                 for idx, row in df_match.iterrows():
                     nm = row[kolom_nama_barang]
                     hg = int(row[kolom_harga_pilihan])
-                    if st.button(f"➕ Tambah: {nm} - Rp {hg:,.0f}".replace(',', '.'), key=f"pilih_{idx}"):
+                    if st.button(f"➕ Tambah: {nm} - Rp {hg:,.0f}".replace('.',''), key=f"pilih_{idx}"):
                         sudah_ada = False
                         for item in st.session_state.keranjang:
                             if item["Nama Barang"] == nm and item["Harga Satuan"] == hg:
@@ -187,11 +171,9 @@ with tab1:
                                 "Harga Satuan": hg,
                                 "Subtotal": hg
                             })
-                        st.session_state.keyword_pencarian = ""
                         st.rerun()
         else:
-            st.warning(f"⚠️ Produk dengan kata kunci '{query_val}' tidak ditemukan.")
-            st.session_state.keyword_pencarian = ""
+            st.warning(f"⚠️ Produk '{keyword_aktif}' tidak ditemukan.")
 
     st.divider()
 
