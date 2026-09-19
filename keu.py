@@ -42,6 +42,14 @@ if "keranjang" not in st.session_state:
 if "keyword_pencarian" not in st.session_state:
     st.session_state.keyword_pencarian = ""
 
+# Tangkap hasil scan dari kamera / URL parameter
+query_params = st.query_params
+if "scan" in query_params:
+    val_scan = query_params["scan"].strip()
+    st.session_state.keyword_pencarian = val_scan
+    st.query_params.clear()
+    st.rerun()
+
 tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
 
 with tab2:
@@ -70,10 +78,9 @@ with tab1:
     
     st.divider()
 
-    # --- 4. INPUT PENCARIAN & SCANNER BERSIH (TANPA RELOAD URL) ---
+    # --- 4. INPUT PENCARIAN & KAMERA SCANNER ---
     st.markdown("🔍 **Cari Nama Barang atau Gunakan Scanner Barcode:**")
 
-    # Menggunakan text_input Streamlit murni agar stabil dan tidak double/berbayang
     input_keyword = st.text_input(
         "Ketik nama barang / barcode lalu Enter:",
         value=st.session_state.keyword_pencarian,
@@ -85,7 +92,7 @@ with tab1:
     with col_cam_btn1:
         buka_kamera = st.checkbox("📷 Buka Kamera Scanner", value=False, key="toggle_kamera_box")
 
-    # Komponen Kamera HTML yang terisolasi aman
+    # Komponen Kamera HTML (Begitu scan berhasil, langsung arahkan ke URL untuk masuk keranjang otomatis)
     if buka_kamera:
         scanner_html = """
         <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #ced4da; text-align: center; margin-bottom: 10px;">
@@ -94,33 +101,36 @@ with tab1:
         </div>
         <script src="https://unpkg.com/html5-qrcode"></script>
         <script>
+            let html5QrCodeScanner = null;
             function onScanSuccess(decodedText, decodedResult) {
-                // Kirim hasil scan ke parent Streamlit lewat postMessage atau manipulasi elemen tersembunyi
-                const inputElement = window.parent.document.querySelector('input[aria-label="Ketik nama barang / barcode lalu Enter:"]');
-                if (inputElement) {
-                    inputElement.value = decodedText;
-                    inputElement.dispatchEvent(new Event('input', { bubbles: true }));
-                    inputElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+                if (html5QrCodeScanner) {
+                    html5QrCodeScanner.stop().then(() => {
+                        window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
+                    }).catch(err => {
+                        window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
+                    });
+                } else {
+                    window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
                 }
             }
             try {
-                let html5QrCode = new Html5Qrcode("reader");
-                html5QrCode.start(
+                html5QrCodeScanner = new Html5Qrcode("reader");
+                html5QrCodeScanner.start(
                     { facingMode: "environment" },
-                    { fps: 15, qrbox: { width: 250, height: 100 } },
+                    { fps: 20, qrbox: { width: 250, height: 100 } },
                     onScanSuccess,
                     (errorMessage) => {}
                 ).catch(err => { console.log(err); });
             } catch(e) {}
         </script>
         """
-        components.html(scanner_html, height=220)
+        components.html(scanner_html, height=240)
 
-    # Sinkronisasi keyword input
+    # Sinkronisasi input manual
     if input_keyword != st.session_state.keyword_pencarian:
         st.session_state.keyword_pencarian = input_keyword
 
-    # --- 5. PEMROSESAN KE KERANJANG ---
+    # --- 5. PEMROSESAN OTOMATIS KE KERANJANG ---
     if st.session_state.keyword_pencarian.strip():
         query_val = st.session_state.keyword_pencarian.strip()
         df_match = pd.DataFrame()
@@ -155,11 +165,10 @@ with tab1:
                         "Subtotal": harga_otomatis
                     })
 
-                st.success(f"✅ Masuk keranjang: **{nama_barang_ditemukan}** (Rp {harga_otomatis:,.0f})".replace(',', '.'))
-                # Reset keyword agar input bersih kembali untuk transaksi berikutnya
+                st.success(f"✅ Otomatis masuk keranjang: **{nama_barang_ditemukan}** (Rp {harga_otomatis:,.0f})".replace(',', '.'))
                 st.session_state.keyword_pencarian = ""
             else:
-                st.info(f"Ditemukan beberapa produk untuk '{query_val}':")
+                st.info(f"Ditemukan beberapa produk untuk '{query_val}'. Silakan pilih di bawah ini:")
                 for idx, row in df_match.iterrows():
                     nm = row[kolom_nama_barang]
                     hg = int(row[kolom_harga_pilihan])
@@ -181,7 +190,8 @@ with tab1:
                         st.session_state.keyword_pencarian = ""
                         st.rerun()
         else:
-            st.warning(f"⚠️ Produk '{query_val}' tidak ditemukan.")
+            st.warning(f"⚠️ Produk dengan kata kunci '{query_val}' tidak ditemukan.")
+            st.session_state.keyword_pencarian = ""
 
     st.divider()
 
