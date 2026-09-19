@@ -131,6 +131,59 @@ with tab1:
     """
     components.html(scanner_html, height=140)
 
+    # Kotak pencarian utama yang bersih
+    keyword_cari = st.text_input(
+        "🔍 Cari Nama Barang atau Scan Barcode:", 
+        value=st.session_state.scanned_barcode,
+        placeholder="Ketik nama atau hasil scan barcode..."
+    )
+    
+    # Sinkronisasi manual jika user mengetik sendiri
+    if keyword_cari != st.session_state.scanned_barcode and not query_params:
+        st.session_state.scanned_barcode = keyword_cari
+
+    df_produk_aktif = df_produk.copy()
+    
+    if keyword_cari:
+        if kolom_barcode and kolom_barcode in df_produk_aktif.columns:
+            match_barcode = df_produk_aktif[df_produk_aktif[kolom_barcode].astype(str).str.contains(keyword_cari, case=False, na=False)]
+            if len(match_barcode) > 0:
+                df_produk_aktif = match_barcode
+            else:
+                df_produk_aktif = df_produk_aktif[
+                    df_produk_aktif[kolom_nama_barang].astype(str).str.contains(keyword_cari, case=False, na=False)
+                ]
+        else:
+            df_produk_aktif = df_produk_aktif[
+                df_produk_aktif[kolom_nama_barang].astype(str).str.contains(keyword_cari, case=False, na=False)
+            ]
+    
+    if len(df_produk_aktif) > 0:
+        col_input1, col_input2, col_input3 = st.columns([2, 1, 1])
+        
+        with col_input1:
+            pilihan_barang = st.selectbox("Pilih Barang:", df_produk_aktif[kolom_nama_barang])
+            data_terpilih = df_produk_aktif[df_produk_aktif[kolom_nama_barang] == pilihan_barang].iloc[0]
+            
+            harga_otomatis = int(data_terpilih[kolom_harga_pilihan])
+            st.caption(f"Harga Satuan ({jenis_pelanggan}): Rp {harga_otomatis:,.0f}".replace(',', '.'))
+        
+        with col_input2:
+            qty_pilih = st.number_input("Jumlah (Qty)", min_value=1, value=1)
+            
+        with col_input3:
+            st.write("") 
+            st.write("")
+            tambah_btn = st.button("➕ Tambah")
+
+        if tambah_btn:
+            subtotal = qty_pilih * harga_otomatis
+            st.session_state.keranjang.append({
+                "Nama Barang": pilihan_barang,
+                "Qty": qty_pilih,
+                "Harga Satuan": harga_otomatis,
+                "Subtotal": subtotal
+            })
             st.session_state.scanned_barcode = ""
             st.toast(f"Berhasil menambahkan {pilihan_barang} ({jenis_pelanggan})!", icon="✅")
     else:
