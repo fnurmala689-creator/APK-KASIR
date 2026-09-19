@@ -6,8 +6,11 @@ import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 
+# --- 1. JUDUL ---
 st.title("🏪 Kasir Toko Sembako")
-st.markdown("Aplikasi Kasir Cepat dengan Scanner Kamera Belakang")
+
+# --- 2. SUBJUDUL ---
+st.markdown("Aplikasi Kasir Cepat dengan Scanner Kamera & Pencarian Manual")
 
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
@@ -36,7 +39,6 @@ kolom_barcode = next((col for col in kolom_barcode_opsi if col in df_produk.colu
 if "keranjang" not in st.session_state:
     st.session_state.keranjang = []
 
-# Inisialisasi state untuk menampung hasil scan barcode
 if "scanned_barcode" not in st.session_state:
     st.session_state.scanned_barcode = ""
 
@@ -65,8 +67,7 @@ with tab2:
     st.dataframe(df_database_tampil, use_container_width=True)
 
 with tab1:
-    st.subheader("Pilih Jenis Pelanggan & Scan Barang")
-    
+    # --- 3. PILIH JENIS PELANGGAN ---
     jenis_pelanggan = st.selectbox(
         "🏷️ Pilih Level Harga / Jenis Pelanggan:", 
         ["Umum", "Bakul", "Umum Antar", "Usaha"]
@@ -76,109 +77,160 @@ with tab1:
     if kolom_harga_pilihan not in df_produk.columns:
         kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
     
-    # --- TOMBOL SCANNER KAMERA BELAKANG ---
-    st.markdown("📷 **Scanner Kamera Belakang**")
-    
-    scanner_html = f"""
-    <div style="background: #f1f3f5; padding: 12px; border-radius: 8px; border: 1px solid #ced4da; margin-bottom: 15px;">
-        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
-            <button id="open-btn" onclick="startScanner()" style="background-color: #2baf2b; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;">📷 Buka Kamera</button>
-            <button id="close-btn" onclick="stopScanner()" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; display: none;">🛑 Tutup Kamera</button>
-            <span id="info-txt" style="font-size: 13px; color: #495057; font-weight: 500;">Tekan tombol untuk mulai scan barcode</span>
+    st.divider()
+
+    # --- 4. KOLOM PENCARIAN BARANG DIBARENGI SIMBOL KAMERA ---
+    st.markdown("🔍 **Cari Nama Barang atau Klik Ikon Kamera untuk Barcode:**")
+
+    search_scanner_html = f"""
+    <div style="background: #f8f9fa; padding: 12px; border-radius: 8px; border: 1px solid #ced4da; margin-bottom: 15px;">
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="text" id="manual-input" placeholder="Ketik nama barang atau scan barcode..." style="flex: 1; padding: 10px 12px; border: 1px solid #ccc; border-radius: 6px; font-size: 14px;" value="{st.session_state.scanned_barcode}">
+            <button onclick="submitManual()" style="background-color: #007bff; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 14px;">Cari/Tambah</button>
+            <button onclick="toggleScanner()" style="background-color: #2baf2b; color: white; border: none; padding: 10px 14px; border-radius: 6px; cursor: pointer; font-size: 16px;" title="Buka Kamera Barcode">📷</button>
         </div>
-        <div id="reader" style="width: 100%; max-width: 450px; margin: 0 auto;"></div>
+        <div id="scanner-container" style="display: none; margin-top: 12px; text-align: center;">
+            <div id="reader" style="width: 100%; max-width: 400px; margin: 0 auto;"></div>
+            <button onclick="toggleScanner()" style="background-color: #ff4b4b; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; margin-top: 8px; font-size: 12px;">Tutup Kamera</button>
+        </div>
     </div>
 
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script>
-        let html5QrCode;
-        function startScanner() {{
-            document.getElementById('open-btn').style.display = 'none';
-            document.getElementById('close-btn').style.display = 'block';
-            document.getElementById('info-txt').innerText = "Arahkan kamera ke barcode produk...";
-            
-            html5QrCode = new Html5Qrcode("reader");
-            html5QrCode.start(
-                {{ facingMode: "environment" }},
-                {{ fps: 20, qrbox: {{ width: 280, height: 140 }} }},
-                (decodedText, decodedResult) => {{
-                    stopScanner();
-                    window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
-                }},
-                (errorMessage) => {{}}
-            ).catch((err) => {{
-                alert("Gagal membuka kamera: " + err);
-                stopScanner();
-            }});
+        let html5QrCode = null;
+        let scannerIsRunning = false;
+
+        function submitManual() {{
+            let val = document.getElementById('manual-input').value.trim();
+            if (val) {{
+                window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(val);
+            }}
         }}
-        
-        function stopScanner() {{
-            if (html5QrCode) {{
-                html5QrCode.stop().then(() => {{
-                    document.getElementById('open-btn').style.display = 'block';
-                    document.getElementById('close-btn').style.display = 'none';
-                    document.getElementById('info-txt').innerText = "Kamera ditutup.";
-                }}).catch(err => {{
-                    document.getElementById('open-btn').style.display = 'block';
-                    document.getElementById('close-btn').style.display = 'none';
+
+        document.getElementById('manual-input').addEventListener("keypress", function(event) {{
+            if (event.key === "Enter") {{
+                submitManual();
+            }}
+        }});
+
+        function toggleScanner() {{
+            let container = document.getElementById('scanner-container');
+            if (!scannerIsRunning) {{
+                container.style.display = 'block';
+                scannerIsRunning = true;
+                html5QrCode = new Html5Qrcode("reader");
+                html5QrCode.start(
+                    {{ facingMode: "environment" }},
+                    {{ fps: 20, qrbox: {{ width: 250, height: 120 }} }},
+                    (decodedText, decodedResult) => {{
+                        stopScanner();
+                        window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
+                    }},
+                    (errorMessage) => {{}}
+                ).catch((err) => {{
+                    alert("Gagal membuka kamera: " + err);
+                    stopScanner();
                 }});
             }} else {{
-                document.getElementById('open-btn').style.display = 'block';
-                document.getElementById('close-btn').style.display = 'none';
+                stopScanner();
+            }}
+        }}
+
+        function stopScanner() {{
+            if (html5QrCode && scannerIsRunning) {{
+                html5QrCode.stop().then(() => {{
+                    scannerIsRunning = false;
+                    document.getElementById('scanner-container').style.display = 'none';
+                }}).catch(err => {{
+                    scannerIsRunning = false;
+                    document.getElementById('scanner-container').style.display = 'none';
+                }});
+            }} else {{
+                scannerIsRunning = false;
+                document.getElementById('scanner-container').style.display = 'none';
             }}
         }}
     </script>
     """
-    components.html(scanner_html, height=340)
+    components.html(search_scanner_html, height=140)
 
-    # PROSES OTOMATIS SAAT SCAN BERHASIL (LANGSUNG MASUK KERANJANG)
+    # Sinkronisasi input teks Streamlit
+    keyword_input = st.text_input("Atau ketik cepat di sini:", value=st.session_state.scanned_barcode, placeholder="Ketik nama atau kode...", label_visibility="collapsed")
+    
+    if keyword_input != st.session_state.scanned_barcode:
+        st.session_state.scanned_barcode = keyword_input
+
+    # --- 5. HASIL PENCARIAN & PEMROSESAN KE KERANJANG ---
     if st.session_state.scanned_barcode:
         query_val = st.session_state.scanned_barcode.strip()
         df_match = pd.DataFrame()
 
-        # Cocokkan dengan kolom barcode di spreadsheet
+        # Cocokkan dengan kolom barcode
         if kolom_barcode and kolom_barcode in df_produk.columns:
             df_match = df_produk[df_produk[kolom_barcode].astype(str).str.strip() == query_val]
 
-        # Jika tidak ketemu di kolom barcode, coba cocokkan dengan nama barang
+        # Jika tidak ketemu di barcode, cocokkan dengan nama barang (ketik manual)
         if len(df_match) == 0:
             df_match = df_produk[df_produk[kolom_nama_barang].astype(str).str.contains(query_val, case=False, na=False)]
 
         if len(df_match) > 0:
-            data_terpilih = df_match.iloc[0]
-            nama_barang_ditemukan = data_terpilih[kolom_nama_barang]
-            harga_otomatis = int(data_terpilih[kolom_harga_pilihan])
+            if len(df_match) == 1:
+                data_terpilih = df_match.iloc[0]
+                nama_barang_ditemukan = data_terpilih[kolom_nama_barang]
+                harga_otomatis = int(data_terpilih[kolom_harga_pilihan])
 
-            # Cek apakah barang sudah ada di keranjang, jika ada tambahkan Qty-nya
-            sudah_ada = False
-            for item in st.session_state.keranjang:
-                if item["Nama Barang"] == nama_barang_ditemukan and item["Harga Satuan"] == harga_otomatis:
-                    item["Qty"] += 1
-                    item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
-                    sudah_ada = True
-                    break
-            
-            if not sudah_ada:
-                st.session_state.keranjang.append({
-                    "Nama Barang": nama_barang_ditemukan,
-                    "Qty": 1,
-                    "Harga Satuan": harga_otomatis,
-                    "Subtotal": harga_otomatis
-                })
+                sudah_ada = False
+                for item in st.session_state.keranjang:
+                    if item["Nama Barang"] == nama_barang_ditemukan and item["Harga Satuan"] == harga_otomatis:
+                        item["Qty"] += 1
+                        item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
+                        sudah_ada = True
+                        break
+                
+                if not sudah_ada:
+                    st.session_state.keranjang.append({
+                        "Nama Barang": nama_barang_ditemukan,
+                        "Qty": 1,
+                        "Harga Satuan": harga_otomatis,
+                        "Subtotal": harga_otomatis
+                    })
 
-            st.success(f"✅ Berhasil masuk keranjang: **{nama_barang_ditemukan}** (Rp {harga_otomatis:,.0f})".replace(',', '.'))
-            st.session_state.scanned_barcode = ""
-            st.rerun()
+                st.success(f"✅ Berhasil masuk keranjang: **{nama_barang_ditemukan}** (Rp {harga_otomatis:,.0f})".replace(',', '.'))
+                st.session_state.scanned_barcode = ""
+                st.rerun()
+            else:
+                st.info(f"Ditemukan beberapa produk untuk '{query_val}'. Silakan pilih di bawah ini:")
+                for idx, row in df_match.iterrows():
+                    nm = row[kolom_nama_barang]
+                    hg = int(row[kolom_harga_pilihan])
+                    if st.button(f"➕ Tambah: {nm} - Rp {hg:,.0f}".replace(',', '.'), key=f"pilih_{idx}"):
+                        sudah_ada = False
+                        for item in st.session_state.keranjang:
+                            if item["Nama Barang"] == nm and item["Harga Satuan"] == hg:
+                                item["Qty"] += 1
+                                item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
+                                sudah_ada = True
+                                break
+                        if not sudah_ada:
+                            st.session_state.keranjang.append({
+                                "Nama Barang": nm,
+                                "Qty": 1,
+                                "Harga Satuan": hg,
+                                "Subtotal": hg
+                            })
+                        st.session_state.scanned_barcode = ""
+                        st.rerun()
         else:
-            st.warning(f"⚠️ Barcode / kode '{query_val}' tidak ditemukan di database.")
-            if st.button("🔄 OK / Reset"):
+            st.warning(f"⚠️ Barang dengan kata kunci '{query_val}' tidak ditemukan di database.")
+            if st.button("🔄 Reset Pencarian"):
                 st.session_state.scanned_barcode = ""
                 st.rerun()
 
     st.divider()
 
-    # LANGSUNG TAMPILKAN TABEL KERANJANG DI SINI TANPA DUPLIKAT HEADER
+    # --- TAMPILAN KERANJANG & NOTA ---
     if len(st.session_state.keranjang) > 0:
+        st.subheader("🛒 Keranjang Belanja")
         df_keranjang = pd.DataFrame(st.session_state.keranjang)
         st.dataframe(df_keranjang, use_container_width=True)
 
@@ -203,7 +255,6 @@ with tab1:
         waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         printer_width = 32  # Lebar standar karakter printer thermal 58mm
 
-        # --- PENYUSUNAN STRUK TEKS UNTUK PREVIEW ---
         lines_preview = []
         lines_preview.append("TOKO JABON KIDUL SEPUR")
         lines_preview.append("Jabon - Jombang")
@@ -220,7 +271,7 @@ with tab1:
             detail_kiri = f"{harga_str} x {item['Qty']} item"
             space_len = printer_width - (len(detail_kiri) + len(sub_str))
             lines_preview.append(detail_kiri + (" " * max(1, space_len)) + sub_str)
-            lines_preview.append("") # Spasi antar barang
+            lines_preview.append("")
 
         lines_preview.append("-" * printer_width)
         
@@ -251,7 +302,7 @@ with tab1:
 
         st.write("")
 
-        # --- PEMBUATAN BYTE ESC/POS UNTUK RAWBT ---
+        # --- PEMBUATAN BYTE ESC/POS & WHATSAPP ---
         INIT = b'\x1b\x40'
         ALIGN_CENTER = b'\x1b\x61\x01'
         ALIGN_LEFT = b'\x1b\x61\x00'
@@ -349,4 +400,4 @@ with tab1:
             """, unsafe_allow_html=True)
 
     else:
-        st.info("Keranjang masih kosong. Silakan buka kamera dan scan barcode produk.")
+        st.info("Keranjang masih kosong. Silakan ketik nama barang atau klik ikon kamera 📷 untuk scan barcode.")
