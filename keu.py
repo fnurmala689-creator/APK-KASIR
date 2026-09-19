@@ -77,6 +77,7 @@ defaults = {
     "keranjang": [],
     "scan_trigger": "",
     "scan_counter": 0,
+    "scan_counter_db": 0,  # counter scanner di tab Daftar Harga
     "last_scan": "",
     "editor_counter": 0,  # untuk reset tabel keranjang setelah diedit
     "riwayat": [],        # riwayat keranjang untuk fitur batalkan
@@ -183,11 +184,27 @@ def kosongkan_keranjang():
     st.session_state.editor_counter += 1
 
 
+def hapus_pencarian_db():
+    st.session_state.search_db = ""
+
+
 tab1, tab2 = st.tabs(["🛒 Kasir", "📋 Database Harga"])
 
 # ================= TAB 2 =================
 with tab2:
     st.subheader("Daftar Barang & Harga")
+
+    # Scanner harus dirender SEBELUM kolom pencarian, supaya hasil scan
+    # bisa langsung diisikan ke kolom pencarian.
+    buka_kamera_db = st.checkbox("📷 Buka Scanner", value=False, key="toggle_kamera_db")
+    if buka_kamera_db:
+        st.caption("Gunakan salah satu kamera saja. Matikan scanner di tab Kasir kalau sedang aktif.")
+        hasil_scan_db = qrcode_scanner(key=f"scanner_db_{st.session_state.scan_counter_db}")
+        if hasil_scan_db:
+            st.session_state.search_db = str(hasil_scan_db).strip()
+            st.session_state.scan_counter_db += 1
+            st.rerun()
+
     search_database = st.text_input(
         "🔍 Cari produk :",
         placeholder="Ketik nama barang atau barcode...",
@@ -195,10 +212,16 @@ with tab2:
     )
     df_tampil = df_produk.drop(columns="_kode", errors="ignore")
     if search_database:
+        kata = search_database.strip()
         mask = df_tampil.astype(str).apply(
-            lambda x: x.str.contains(search_database, case=False, na=False, regex=False)
+            lambda x: x.str.contains(kata, case=False, na=False, regex=False)
         ).any(axis=1)
+        # cocokkan juga barcode dengan format yang sudah disamakan (abaikan 0 di depan)
+        if "_kode" in df_produk.columns:
+            mask = mask | (df_produk["_kode"] == norm_kode(kata))
         df_tampil = df_tampil[mask]
+        st.caption(f"Menampilkan {len(df_tampil)} produk untuk pencarian: `{kata}`")
+        st.button("✖️ Hapus pencarian", on_click=hapus_pencarian_db)
     st.dataframe(df_tampil, use_container_width=True)
 
 # ================= TAB 1 =================
@@ -310,7 +333,6 @@ with tab1:
             },
             use_container_width=True,
         )
-
 
         subtotal_barang = int(df_keranjang["Subtotal"].sum())
 
