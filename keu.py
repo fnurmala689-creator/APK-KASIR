@@ -12,23 +12,55 @@ st.markdown("Aplikasi Kasir Cepat dengan Scanner Kamera & Pencarian Manual")
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
 
+# Data cadangan kalau Google Sheets gagal diunduh
+FALLBACK = pd.DataFrame({
+    "Barcode": ["899111", "899222"],
+    "Nama Barang": ["Beras Premium 1 Kg", "Minyak Goreng 1 Liter"],
+    "Harga Umum": [15000, 17500],
+    "Harga Reseller": [13500, 16000],
+    "Harga Pengusaha": [12500, 15000],
+})
+
 
 @st.cache_data(ttl=300)
 def muat_produk():
     try:
-        return pd.read_csv(PERMANENT_CSV_URL)
+        df = pd.read_csv(PERMANENT_CSV_URL, dtype=str)  # semua dibaca sebagai teks
+        ok = True
     except Exception:
-        return pd.DataFrame({
-            "Barcode": ["899111", "899222"],
-            "Nama Barang": ["Beras Premium 1 Kg", "Minyak Goreng 1 Liter"],
-            "Harga Umum": [15000, 17500],
-            "Harga Reseller": [13500, 16000],
-            "Harga Pengusaha": [12500, 15000],
-        })
+        df = FALLBACK.astype(str)
+        ok = False
+    df.columns = df.columns.str.strip()
+    # kolom harga diubah jadi angka
+    for c in df.columns:
+        if c.lower().startswith("harga"):
+            df[c] = (
+                df[c].fillna("0").astype(str)
+                .str.replace(r"\.0$", "", regex=True)
+                .str.replace(r"[^\d]", "", regex=True)
+                .replace("", "0")
+                .astype(int)
+            )
+    return df, ok
 
 
-df_produk = muat_produk().copy()
-df_produk.columns = df_produk.columns.str.strip()
+def norm_kode(x):
+    """Samakan format barcode: hapus spasi, '.0', dan angka 0 di depan."""
+    s = str(x).strip().replace("\u00a0", "")
+    if s.endswith(".0"):
+        s = s[:-2]
+    return s.lstrip("0")
+
+
+def rp(angka):
+    return f"{angka:,.0f}".replace(",", ".")
+
+
+df_produk, data_dari_sheet = muat_produk()
+df_produk = df_produk.copy()
+
+if not data_dari_sheet:
+    st.error("⚠️ Gagal mengambil data dari Google Sheets. Sekarang memakai data contoh.")
 
 kolom_nama_opsi = ["Nama Barang", "nama barang", "Nama", "nama", "Produk", "produk"]
 kolom_nama_barang = next((c for c in kolom_nama_opsi if c in df_produk.columns), df_produk.columns[0])
@@ -36,16 +68,15 @@ kolom_nama_barang = next((c for c in kolom_nama_opsi if c in df_produk.columns),
 kolom_barcode_opsi = ["Barcode", "barcode", "SKU", "sku", "Kode", "kode"]
 kolom_barcode = next((c for c in kolom_barcode_opsi if c in df_produk.columns), None)
 
-
-def rp(angka):
-    return f"{angka:,.0f}".replace(",", ".")
-
+if kolom_barcode:
+    df_produk["_kode"] = df_produk[kolom_barcode].map(norm_kode)
 
 # --- SESSION STATE ---
 defaults = {
     "keranjang": [],
     "scan_trigger": "",
     "scan_counter": 0,
+    "last_scan": "",
     "pilihan": [],      # hasil pencarian yang punya lebih dari 1 produk
     "pesan": None,      # (tipe, teks)
 }
@@ -75,9 +106,9 @@ def pilih_produk(nama, harga):
 
 
 def submit_teks():
-    """Callback: dipanggil saat Enter ditekan di kolom pencarian."""
+    """Dipanggil saat Enter ditekan di kolom pencarian."""
     st.session_state.scan_trigger = st.session_state.input_text_kasir.strip()
-    st.session_state.input_text_kasir = ""  # aman diubah di dalam callback
+    st.session_state.input_text_kasir = ""
 
 
 tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
@@ -90,10 +121,10 @@ with tab2:
         placeholder="Ketik nama barang atau barcode...",
         key="search_db",
     )
-    df_tampil = df_produk.copy()
+    df_tampil = df_produk.drop(columns="_kode", errors="ignore")
     if search_database:
         mask = df_tampil.astype(str).apply(
-            lambda x: x.str.contains(search_database, case=False, na=False)
+            lambda x: x.str.contains(search_database, case=False, na=False, regex=False)
         ).any(axis=1)
         df_tampil = df_tampil[mask]
     st.dataframe(df_tampil, use_container_width=True)
@@ -129,6 +160,7 @@ with tab1:
             hasil_scan = qrcode_scanner(key=f"scanner_{st.session_state.scan_counter}")
             if hasil_scan:
                 st.session_state.scan_trigger = str(hasil_scan).strip()
+                st.session_state.last_scan = str(hasil_scan).strip()
                 st.session_state.scan_counter += 1
                 st.rerun()
 
@@ -141,10 +173,12 @@ with tab1:
 
         df_match = pd.DataFrame()
         if kolom_barcode:
-            df_match = df_produk[df_produk[kolom_barcode].astype(str).str.strip() == keyword_aktif]
+            df_match = df_produk[df_produk["_kode"] == norm_kode(keyword_aktif)]
         if len(df_match) == 0:
             df_match = df_produk[
-                df_produk[kolom_nama_barang].astype(str).str.contains(keyword_aktif, case=False, na=False, regex=False)
+                df_produk[kolom_nama_barang].astype(str).str.contains(
+                    keyword_aktif, case=False, na=False, regex=False
+                )
             ]
 
         if len(df_match) == 0:
@@ -152,8 +186,7 @@ with tab1:
         else:
             daftar = []
             for _, row in df_match.iterrows():
-                harga = pd.to_numeric(row[kolom_harga_pilihan], errors="coerce")
-                harga = 0 if pd.isna(harga) else int(harga)
+                harga = int(row[kolom_harga_pilihan])
                 daftar.append((str(row[kolom_nama_barang]), harga))
 
             if len(daftar) == 1:
@@ -174,6 +207,9 @@ with tab1:
             on_click=pilih_produk,
             args=(nm, hg),
         )
+
+    if st.session_state.get("last_scan"):
+        st.caption(f"Scan terakhir terbaca: `{st.session_state.last_scan}`")
 
     st.divider()
 
@@ -198,6 +234,7 @@ with tab1:
             st.session_state.keranjang = []
             st.session_state.pilihan = []
             st.session_state.pesan = None
+            st.session_state.last_scan = ""
             st.rerun()
 
         uang_kembalian = uang_tunai - total_belanja_semua
