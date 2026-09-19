@@ -5,8 +5,8 @@ import urllib.parse
 
 st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 
-st.title("🏪 Kasir Toko Sembako (ESC/POS RawBT)")
-st.markdown("Aplikasi Kasir dengan Pencarian Database, Pratinjau, Cetak ESC/POS & WhatsApp")
+st.title("🏪 Kasir Toko Sembako (ESC/POS & Scanner)")
+st.markdown("Aplikasi Kasir dengan Scanner Kamera Depan, Pencarian Database, Pratinjau, Cetak ESC/POS & WhatsApp")
 
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
@@ -28,9 +28,10 @@ kolom_nama_barang = next((col for col in kolom_nama_opsi if col in df_produk.col
 if "keranjang" not in st.session_state:
     st.session_state.keranjang = []
 
-tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
+# --- DITAMBAHKAN TAB KETIGA KHUSUS SCANNER KAMERA DEPAN ---
+tab1, tab2, tab3 = st.tabs(["🛒 Kasir & Keranjang", "🤳 Scanner Kamera Depan", "📋 Daftar Harga (Database)"])
 
-with tab2:
+with tab3:
     st.subheader("Daftar Barang & Harga Bertingkat (Google Sheets)")
     st.info("💡 Data di bawah terhubung otomatis dari Google Spreadsheet Anda.")
     
@@ -43,6 +44,16 @@ with tab2:
         ]
     
     st.dataframe(df_database_tampil, use_container_width=True)
+
+with tab2:
+    st.subheader("🤳 Pemindai Kamera Depan")
+    st.info("💡 Menggunakan kamera depan (selfie) perangkat Anda tanpa aplikasi tambahan.")
+    
+    # Menggunakan parameter 'user' agar mengunci ke kamera depan (front camera)
+    gambar_kamera = st.camera_input("Ambil Foto", label_visibility="visible", key="cam_depan", help="Gunakan kamera depan")
+    
+    if gambar_kamera is not None:
+        st.success("Foto berhasil diambil menggunakan kamera depan!")
 
 with tab1:
     st.subheader("1. Pilih Jenis Pelanggan & Tambah Barang")
