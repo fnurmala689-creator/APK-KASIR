@@ -1,13 +1,14 @@
 import streamlit as st
 import pandas as pd
+import copy
 from datetime import datetime
 import urllib.parse
 from streamlit_qrcode_scanner import qrcode_scanner
 
-st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
+st.set_page_config(page_title="SELAMAT DATANG DI TOKO JABON KIDUL SEPUR", page_icon="🛒")
 
-st.title("🏪 Kasir Toko Sembako")
-st.markdown("Aplikasi Kasir Cepat dengan Scanner Kamera & Pencarian Manual")
+st.title("😎 TOKO JABON KIDUL SEPUR")
+st.markdown("Don't Forget to Pray")
 
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
@@ -78,6 +79,8 @@ defaults = {
     "scan_counter": 0,
     "last_scan": "",
     "editor_counter": 0,  # untuk reset tabel keranjang setelah diedit
+    "riwayat": [],        # riwayat keranjang untuk fitur batalkan
+    "konfirmasi_kosong": False,
     "pilihan": [],      # hasil pencarian yang punya lebih dari 1 produk
     "pesan": None,      # (tipe, teks)
 }
@@ -86,7 +89,14 @@ for k, v in defaults.items():
         st.session_state[k] = v
 
 
+def simpan_riwayat():
+    """Simpan kondisi keranjang sekarang, supaya bisa dibatalkan."""
+    st.session_state.riwayat.append(copy.deepcopy(st.session_state.keranjang))
+    st.session_state.riwayat = st.session_state.riwayat[-20:]  # simpan maksimal 20 langkah
+
+
 def tambah_ke_keranjang(nama, harga):
+    simpan_riwayat()
     for item in st.session_state.keranjang:
         if item["Nama Barang"] == nama and item["Harga Satuan"] == harga:
             item["Qty"] += 1
@@ -116,6 +126,7 @@ def terapkan_edit_qty():
     """Dipanggil saat Qty di tabel keranjang diubah. Qty 0 = hapus barang."""
     key = f"editor_keranjang_{st.session_state.editor_counter}"
     edits = st.session_state.get(key, {}).get("edited_rows", {})
+    simpan_riwayat()
     baru = []
     for i, item in enumerate(st.session_state.keranjang):
         qty = edits.get(i, {}).get("Qty", item["Qty"])
@@ -128,6 +139,45 @@ def terapkan_edit_qty():
             item["Subtotal"] = qty * item["Harga Satuan"]
             baru.append(item)
     st.session_state.keranjang = baru
+    st.session_state.editor_counter += 1
+
+
+def batalkan_terakhir():
+    """Kembalikan keranjang ke kondisi sebelum input terakhir."""
+    if st.session_state.riwayat:
+        st.session_state.keranjang = st.session_state.riwayat.pop()
+        st.session_state.editor_counter += 1
+        st.session_state.pilihan = []
+        st.session_state.pesan = ("info", "↩️ Input terakhir dibatalkan.")
+
+
+def hapus_barang(key_pilihan):
+    """Hapus satu barang tertentu dari keranjang."""
+    i = st.session_state.get(key_pilihan)
+    if i is not None and 0 <= i < len(st.session_state.keranjang):
+        simpan_riwayat()
+        nama = st.session_state.keranjang[i]["Nama Barang"]
+        del st.session_state.keranjang[i]
+        st.session_state.editor_counter += 1
+        st.session_state.pilihan = []
+        st.session_state.pesan = ("info", f"❌ {nama} dihapus dari keranjang.")
+
+
+def minta_konfirmasi_kosong():
+    st.session_state.konfirmasi_kosong = True
+
+
+def batal_kosongkan():
+    st.session_state.konfirmasi_kosong = False
+
+
+def kosongkan_keranjang():
+    simpan_riwayat()
+    st.session_state.keranjang = []
+    st.session_state.pilihan = []
+    st.session_state.pesan = ("info", "🗑️ Keranjang dikosongkan. Klik 'Batalkan Input Terakhir' untuk mengembalikan.")
+    st.session_state.last_scan = ""
+    st.session_state.konfirmasi_kosong = False
     st.session_state.editor_counter += 1
 
 
@@ -231,6 +281,13 @@ with tab1:
     if st.session_state.get("last_scan"):
         st.caption(f"Scan terakhir terbaca: `{st.session_state.last_scan}`")
 
+    if st.session_state.riwayat:
+        st.button(
+            "↩️ Batalkan Input Terakhir",
+            on_click=batalkan_terakhir,
+            help="Mengembalikan keranjang ke kondisi sebelum input terakhir (tambah barang, ubah Qty, hapus, atau kosongkan).",
+        )
+
     st.divider()
 
     # ================= KERANJANG & NOTA =================
@@ -267,12 +324,34 @@ with tab1:
                 "Uang Tunai (Rp)", min_value=0, value=total_belanja_semua, step=5000, key=f"uang_tunai_{total_belanja_semua}"
             )
 
-        if st.button("🗑️ Kosongkan Keranjang", type="secondary"):
-            st.session_state.keranjang = []
-            st.session_state.pilihan = []
-            st.session_state.pesan = None
-            st.session_state.last_scan = ""
-            st.rerun()
+        # --- BATALKAN / HAPUS BARANG ---
+        key_hapus = f"pilih_hapus_{st.session_state.editor_counter}"
+        col_h1, col_h2 = st.columns([3, 2])
+        with col_h1:
+            st.selectbox(
+                "❌ Pilih barang yang ingin dibatalkan:",
+                options=list(range(len(st.session_state.keranjang))),
+                format_func=lambda i: f"{i + 1}. {st.session_state.keranjang[i]['Nama Barang']} (x{st.session_state.keranjang[i]['Qty']})",
+                key=key_hapus,
+            )
+        with col_h2:
+            st.write("")
+            st.button(
+                "❌ Hapus Barang Ini",
+                on_click=hapus_barang,
+                args=(key_hapus,),
+                use_container_width=True,
+            )
+
+        if not st.session_state.konfirmasi_kosong:
+            st.button("🗑️ Kosongkan Semua Keranjang", type="secondary", on_click=minta_konfirmasi_kosong)
+        else:
+            st.warning("Yakin ingin mengosongkan SEMUA barang di keranjang?")
+            col_k1, col_k2 = st.columns(2)
+            with col_k1:
+                st.button("Ya, Kosongkan", type="primary", on_click=kosongkan_keranjang, use_container_width=True)
+            with col_k2:
+                st.button("Batal", on_click=batal_kosongkan, use_container_width=True)
 
         uang_kembalian = uang_tunai - total_belanja_semua
 
