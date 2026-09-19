@@ -2,11 +2,12 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import urllib.parse
+import streamlit.components.v1 as components
 
 st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 
-st.title("🏪 Kasir Toko Sembako (ESC/POS & Scanner)")
-st.markdown("Aplikasi Kasir dengan Scanner Kamera Depan, Pencarian Database, Pratinjau, Cetak ESC/POS & WhatsApp")
+st.title("🏪 Kasir Toko Sembako (ESC/POS & Barcode Scanner)")
+st.markdown("Aplikasi Kasir Cepat dengan Scanner Barcode Langsung, Pencarian, Pratinjau, Cetak ESC/POS & WhatsApp")
 
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
@@ -15,6 +16,7 @@ try:
     df_produk = pd.read_csv(PERMANENT_CSV_URL)
 except Exception as e:
     df_produk = pd.DataFrame({
+        "Barcode": ["899111", "899222"],
         "Nama Barang": ["Beras Premium 1 Kg", "Minyak Goreng 1 Liter"],
         "Harga Umum": [15000, 17500],
         "Harga Reseller": [13500, 16000],
@@ -22,38 +24,37 @@ except Exception as e:
     })
 
 df_produk.columns = df_produk.columns.str.strip()
+
+# Deteksi kolom nama barang
 kolom_nama_opsi = ["Nama Barang", "nama barang", "Nama", "nama", "Produk", "produk"]
 kolom_nama_barang = next((col for col in kolom_nama_opsi if col in df_produk.columns), df_produk.columns[0])
+
+# Deteksi kolom barcode (jika ada)
+kolom_barcode_opsi = ["Barcode", "barcode", "SKU", "sku", "Kode", "kode"]
+kolom_barcode = next((col for col in kolom_barcode_opsi if col in df_produk.columns), None)
 
 if "keranjang" not in st.session_state:
     st.session_state.keranjang = []
 
-# --- DITAMBAHKAN TAB KETIGA KHUSUS SCANNER KAMERA DEPAN ---
-tab1, tab2, tab3 = st.tabs(["🛒 Kasir & Keranjang", "🤳 Scanner Kamera Depan", "📋 Daftar Harga (Database)"])
+# State untuk menyimpan hasil scan barcode sementara
+if "scanned_code" not in st.session_state:
+    st.session_state.scanned_code = ""
 
-with tab3:
+tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
+
+with tab2:
     st.subheader("Daftar Barang & Harga Bertingkat (Google Sheets)")
-    st.info("💡 Data di bawah terhubung otomatis dari Google Spreadsheet Anda.")
+    st.info("💡 Pastikan ada kolom 'Barcode' di Google Spreadsheet Anda untuk pencocokan pemindai.")
     
-    search_database = st.text_input("🔍 Cari produk di database:", placeholder="Ketik nama barang yang ingin dicari...", key="search_db")
+    search_database = st.text_input("🔍 Cari produk di database:", placeholder="Ketik nama barang atau barcode...", key="search_db")
     
     df_database_tampil = df_produk.copy()
     if search_database:
-        df_database_tampil = df_database_tampil[
-            df_database_tampil[kolom_nama_barang].astype(str).str.contains(search_database, case=False, na=False)
-        ]
+        # Cari di semua kolom teks
+        mask = df_database_tampil.astype(str).apply(lambda x: x.str.contains(search_database, case=False, na=False)).any(axis=1)
+        df_database_tampil = df_database_tampil[mask]
     
     st.dataframe(df_database_tampil, use_container_width=True)
-
-with tab2:
-    st.subheader("🤳 Pemindai Kamera Depan")
-    st.info("💡 Menggunakan kamera depan (selfie) perangkat Anda tanpa aplikasi tambahan.")
-    
-    # Menggunakan parameter 'user' agar mengunci ke kamera depan (front camera)
-    gambar_kamera = st.camera_input("Ambil Foto", label_visibility="visible", key="cam_depan", help="Gunakan kamera depan")
-    
-    if gambar_kamera is not None:
-        st.success("Foto berhasil diambil menggunakan kamera depan!")
 
 with tab1:
     st.subheader("1. Pilih Jenis Pelanggan & Tambah Barang")
@@ -67,14 +68,82 @@ with tab1:
     if kolom_harga_pilihan not in df_produk.columns:
         kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
     
-    keyword_cari = st.text_input("🔍 Cari nama barang untuk kasir:", placeholder="Contoh: minyak, beras, gula...")
+    # --- INTEGRASI HTML/JS SCANNER BARCODE LANGSUNG DI RUANG KASIR ---
+    st.markdown("---")
+    st.markdown("📷 **Scanner Barcode Kamera Langsung**")
+    
+    # Komponen HTML + pustaka html5-qrcode untuk akses kamera belakang & baca barcode real-time
+    barcode_html = """
+    <div>
+        <button id="start-btn" onclick="startScanner()" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%;">📷 Nyalakan Kamera Scanner</button>
+        <button id="stop-btn" onclick="stopScanner()" style="background-color: #6c757d; color: white; border: none; padding: 10px 15px; border-radius: 5px; font-weight: bold; cursor: pointer; width: 100%; display: none; margin-top: 5px;">🛑 Matikan Kamera</button>
+        <div id="reader" style="width: 100%; margin-top: 10px;"></div>
+    </div>
+    
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script>
+        let html5QrCode;
+        function startScanner() {
+            document.getElementById('start-btn').style.display = 'none';
+            document.getElementById('stop-btn').style.display = 'block';
+            
+            html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start(
+                { facingMode: "environment" }, // Menggunakan kamera belakang secara otomatis
+                { fps: 10, qrbox: { width: 250, height: 150 } },
+                (decodedText, decodedResult) => {
+                    // Kirim hasil scan ke Streamlit melalui URL parameter / query state
+                    const streamlitInput = parent.document.querySelector('input[aria-label*="Cari"]');
+                    if (streamlitInput) {
+                        streamlitInput.value = decodedText;
+                        streamlitInput.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    alert("Barcode Berhasil Discan: " + decodedText);
+                    stopScanner();
+                },
+                (errorMessage) => {
+                    // Scanning error ignore (wajar saat mencari fokus)
+                }
+            ).catch((err) => {
+                alert("Gagal membuka kamera: " + err);
+            });
+        }
+        
+        function stopScanner() {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    document.getElementById('start-btn').style.display = 'block';
+                    document.getElementById('stop-btn').style.display = 'none';
+                }).catch(err => {
+                    console.log("Gagal mematikan scanner.");
+                });
+            }
+        }
+    </script>
+    """
+    components.html(barcode_html, height=320)
+    st.markdown("---")
+
+    # Jika ada pencarian dari input teks atau hasil scan barcode
+    keyword_cari = st.text_input("🔍 Cari nama barang atau Scan Barcode:", placeholder="Ketik nama barang / hasil scan barcode...")
     
     df_produk_aktif = df_produk.copy()
     
     if keyword_cari:
-        df_produk_aktif = df_produk_aktif[
-            df_produk_aktif[kolom_nama_barang].astype(str).str.contains(keyword_cari, case=False, na=False)
-        ]
+        # Cek apakah pencarian cocok dengan Barcode (jika kolom barcode ada)
+        if kolom_barcode and kolom_barcode in df_produk_aktif.columns:
+            match_barcode = df_produk_aktif[df_produk_aktif[kolom_barcode].astype(str).str.contains(keyword_cari, case=False, na=False)]
+            if len(match_barcode) > 0:
+                df_produk_aktif = match_barcode
+            else:
+                # Jika tidak cocok barcode, cari berdasarkan nama barang
+                df_produk_aktif = df_produk_aktif[
+                    df_produk_aktif[kolom_nama_barang].astype(str).str.contains(keyword_cari, case=False, na=False)
+                ]
+        else:
+            df_produk_aktif = df_produk_aktif[
+                df_produk_aktif[kolom_nama_barang].astype(str).str.contains(keyword_cari, case=False, na=False)
+            ]
     
     if len(df_produk_aktif) > 0:
         col_input1, col_input2, col_input3 = st.columns([2, 1, 1])
@@ -104,7 +173,7 @@ with tab1:
             })
             st.toast(f"Berhasil menambahkan {pilihan_barang} ({jenis_pelanggan})!", icon="✅")
     else:
-        st.warning("Barang tidak ditemukan.")
+        st.warning("Barang atau Barcode tidak ditemukan di database.")
 
     st.divider()
     st.subheader("2. Keranjang Belanja")
