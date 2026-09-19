@@ -115,10 +115,12 @@ def pilih_produk(nama, harga):
     st.session_state.pilihan = []
     st.session_state.pesan = ("success", f"✅ Berhasil masuk keranjang: **{nama}** (Rp {rp(harga)})")
 
-    def submit_teks():
+
+def submit_teks():
     """Dipanggil saat Enter ditekan di kolom pencarian."""
     st.session_state.scan_trigger = st.session_state.input_text_kasir.strip()
     st.session_state.input_text_kasir = ""
+
 
 def terapkan_edit_qty():
     """Dipanggil saat Qty di tabel keranjang diubah. Qty 0 = hapus barang."""
