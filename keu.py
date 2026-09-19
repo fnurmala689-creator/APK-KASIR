@@ -76,17 +76,18 @@ with tab1:
     if kolom_harga_pilihan not in df_produk.columns:
         kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
     
-    # --- TOMBOL SCANNER KAMERA BELAKANG YANG RAPI & BERSIH ---
+    # --- TOMBOL SCANNER KAMERA BELAKANG (PREVIEW DIPERBESAR & JELAS) ---
     st.markdown("📷 **Scanner Kamera Belakang**")
     
     scanner_html = f"""
-    <div style="background: #f1f3f5; padding: 10px; border-radius: 8px; border: 1px solid #ced4da; margin-bottom: 15px;">
-        <div style="display: flex; gap: 10px; align-items: center;">
-            <button id="open-btn" onclick="startScanner()" style="background-color: #2baf2b; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px;">📷 Buka Kamera</button>
-            <button id="close-btn" onclick="stopScanner()" style="background-color: #ff4b4b; color: white; border: none; padding: 8px 14px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 13px; display: none;">🛑 Tutup Kamera</button>
-            <span id="info-txt" style="font-size: 12px; color: #495057;">Tekan tombol untuk scan barcode produk</span>
+    <div style="background: #f1f3f5; padding: 12px; border-radius: 8px; border: 1px solid #ced4da; margin-bottom: 15px;">
+        <div style="display: flex; gap: 10px; align-items: center; margin-bottom: 8px;">
+            <button id="open-btn" onclick="startScanner()" style="background-color: #2baf2b; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px;">📷 Buka Kamera</button>
+            <button id="close-btn" onclick="stopScanner()" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; display: none;">🛑 Tutup Kamera</button>
+            <span id="info-txt" style="font-size: 13px; color: #495057; font-weight: 500;">Tekan tombol untuk mulai scan barcode</span>
         </div>
-        <div id="reader" style="width: 100%; max-width: 300px; margin-top: 10px;"></div>
+        <!-- Area preview kamera diperbesar agar jelas -->
+        <div id="reader" style="width: 100%; max-width: 450px; margin: 0 auto;"></div>
     </div>
 
     <script src="https://unpkg.com/html5-qrcode"></script>
@@ -95,12 +96,12 @@ with tab1:
         function startScanner() {{
             document.getElementById('open-btn').style.display = 'none';
             document.getElementById('close-btn').style.display = 'block';
-            document.getElementById('info-txt').innerText = "Arahkan kamera ke barcode...";
+            document.getElementById('info-txt').innerText = "Arahkan kamera ke barcode produk...";
             
             html5QrCode = new Html5Qrcode("reader");
             html5QrCode.start(
                 {{ facingMode: "environment" }},
-                {{ fps: 15, qrbox: {{ width: 200, height: 100 }} }},
+                {{ fps: 20, qrbox: {{ width: 280, height: 140 }} }},
                 (decodedText, decodedResult) => {{
                     stopScanner();
                     window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
@@ -129,9 +130,9 @@ with tab1:
         }}
     </script>
     """
-    components.html(scanner_html, height=140)
+    components.html(scanner_html, height=340)
 
-    # Kotak pencarian utama yang bersih
+    # Kotak pencarian utama tunggal yang bersih (sinkron dengan hasil scan)
     keyword_cari = st.text_input(
         "🔍 Cari Nama Barang atau Scan Barcode:", 
         value=st.session_state.scanned_barcode,
@@ -162,19 +163,19 @@ with tab1:
         col_input1, col_input2, col_input3 = st.columns([2, 1, 1])
         
         with col_input1:
-            pilihan_barang = st.selectbox("Pilih Barang:", df_produk_aktif[kolom_nama_barang])
+            pilihan_barang = st.selectbox("Pilih Barang:", df_produk_aktif[kolom_nama_barang], key="pilihan_barang_box")
             data_terpilih = df_produk_aktif[df_produk_aktif[kolom_nama_barang] == pilihan_barang].iloc[0]
             
             harga_otomatis = int(data_terpilih[kolom_harga_pilihan])
             st.caption(f"Harga Satuan ({jenis_pelanggan}): Rp {harga_otomatis:,.0f}".replace(',', '.'))
         
         with col_input2:
-            qty_pilih = st.number_input("Jumlah (Qty)", min_value=1, value=1)
+            qty_pilih = st.number_input("Jumlah (Qty)", min_value=1, value=1, key="qty_pilih_input")
             
         with col_input3:
             st.write("") 
             st.write("")
-            tambah_btn = st.button("➕ Tambah")
+            tambah_btn = st.button("➕ Tambah", key="tambah_keranjang_btn")
 
         if tambah_btn:
             subtotal = qty_pilih * harga_otomatis
@@ -206,7 +207,7 @@ with tab1:
         with col_aksi1:
             nama_pembeli = st.text_input("Nama Pelanggan", value="Pelanggan Umum", key="nama_pelanggan_input")
         with col_aksi2:
-            uang_tunai = st.number_input("Uang Tunai (Rp)", min_value=0, value=int(total_belanja_semua), step=5000)
+            uang_tunai = st.number_input("Uang Tunai (Rp)", min_value=0, value=int(total_belanja_semua), step=5000, key="uang_tunai_input")
 
         if st.button("🗑️ Kosongkan Keranjang", type="secondary"):
             st.session_state.keranjang = []
