@@ -77,6 +77,7 @@ defaults = {
     "scan_trigger": "",
     "scan_counter": 0,
     "last_scan": "",
+    "editor_counter": 0,  # untuk reset tabel keranjang setelah diedit
     "pilihan": [],      # hasil pencarian yang punya lebih dari 1 produk
     "pesan": None,      # (tipe, teks)
 }
@@ -109,6 +110,25 @@ def submit_teks():
     """Dipanggil saat Enter ditekan di kolom pencarian."""
     st.session_state.scan_trigger = st.session_state.input_text_kasir.strip()
     st.session_state.input_text_kasir = ""
+
+
+def terapkan_edit_qty():
+    """Dipanggil saat Qty di tabel keranjang diubah. Qty 0 = hapus barang."""
+    key = f"editor_keranjang_{st.session_state.editor_counter}"
+    edits = st.session_state.get(key, {}).get("edited_rows", {})
+    baru = []
+    for i, item in enumerate(st.session_state.keranjang):
+        qty = edits.get(i, {}).get("Qty", item["Qty"])
+        try:
+            qty = int(qty)
+        except (TypeError, ValueError):
+            qty = item["Qty"]  # kalau kolom dikosongkan, pakai nilai lama
+        if qty > 0:
+            item["Qty"] = qty
+            item["Subtotal"] = qty * item["Harga Satuan"]
+            baru.append(item)
+    st.session_state.keranjang = baru
+    st.session_state.editor_counter += 1
 
 
 tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
@@ -217,7 +237,24 @@ with tab1:
     if len(st.session_state.keranjang) > 0:
         st.subheader("🛒 Keranjang Belanja")
         df_keranjang = pd.DataFrame(st.session_state.keranjang)
-        st.dataframe(df_keranjang, use_container_width=True)
+        df_keranjang.index = range(1, len(df_keranjang) + 1)  # nomor urut mulai dari 1
+        df_keranjang.index.name = "No"
+        st.data_editor(
+            df_keranjang,
+            key=f"editor_keranjang_{st.session_state.editor_counter}",
+            on_change=terapkan_edit_qty,
+            disabled=["Nama Barang", "Harga Satuan", "Subtotal"],
+            column_config={
+                "Qty": st.column_config.NumberColumn(
+                    "Qty", min_value=0, step=1, format="%d",
+                    help="Klik lalu ketik jumlah. Isi 0 untuk menghapus barang.",
+                ),
+                "Harga Satuan": st.column_config.NumberColumn("Harga Satuan", format="%d"),
+                "Subtotal": st.column_config.NumberColumn("Subtotal", format="%d"),
+            },
+            use_container_width=True,
+        )
+        st.caption("💡 Klik kolom Qty untuk mengetik jumlah. Isi 0 untuk menghapus barang dari keranjang.")
 
         total_belanja_semua = int(df_keranjang["Subtotal"].sum())
         st.metric(label="TOTAL YANG HARUS DIBAYAR", value=f"Rp {rp(total_belanja_semua)}")
@@ -227,7 +264,7 @@ with tab1:
             nama_pembeli = st.text_input("Nama Pelanggan", value="Pelanggan Umum", key="nama_pelanggan_input")
         with col_aksi2:
             uang_tunai = st.number_input(
-                "Uang Tunai (Rp)", min_value=0, value=total_belanja_semua, step=5000, key="uang_tunai_input"
+                "Uang Tunai (Rp)", min_value=0, value=total_belanja_semua, step=5000, key=f"uang_tunai_{total_belanja_semua}"
             )
 
         if st.button("🗑️ Kosongkan Keranjang", type="secondary"):
