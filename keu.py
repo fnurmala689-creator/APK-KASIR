@@ -39,6 +39,17 @@ kolom_barcode = next((col for col in kolom_barcode_opsi if col in df_produk.colu
 if "keranjang" not in st.session_state:
     st.session_state.keranjang = []
 
+# State khusus untuk menampung hasil scan kamera secara instan
+if "scan_trigger" not in st.session_state:
+    st.session_state.scan_trigger = ""
+
+# Tangkap parameter URL jika ada kiriman dari scanner
+query_params = st.query_params
+if "scan" in query_params:
+    st.session_state.scan_trigger = query_params["scan"].strip()
+    st.query_params.clear()
+    st.rerun()
+
 tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
 
 with tab2:
@@ -65,10 +76,10 @@ with tab1:
     
     st.divider()
 
-    # --- 4. INPUT PENCARIAN & KAMERA SCANNER (TANPA RELOAD HALAMAN) ---
+    # --- 4. INPUT PENCARIAN & KAMERA SCANNER ---
     st.markdown("🔍 **Cari Nama Barang atau Gunakan Scanner Barcode:**")
 
-    # Menggunakan text_input Streamlit biasa untuk menerima ketikan atau hasil scan
+    # Input manual text biasa
     input_keyword = st.text_input(
         "Ketik nama barang / barcode lalu Enter:",
         placeholder="Contoh: Beras atau 899111",
@@ -79,7 +90,7 @@ with tab1:
     with col_cam_btn1:
         buka_kamera = st.checkbox("📷 Buka Kamera Scanner", value=False, key="toggle_kamera_box")
 
-    # Scanner HTML yang langsung mengetik hasil scan ke kotak input di atas secara mulus (tanpa reload URL)
+    # Scanner HTML menggunakan metode reload parameter URL yang aman untuk langsung memicu proses keranjang
     if buka_kamera:
         scanner_html = """
         <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #ced4da; text-align: center; margin-bottom: 10px;">
@@ -88,24 +99,18 @@ with tab1:
         </div>
         <script src="https://unpkg.com/html5-qrcode"></script>
         <script>
+            let scannerRunning = false;
             function onScanSuccess(decodedText, decodedResult) {
-                // Cari kotak input Streamlit di halaman utama dan masukkan hasil scan secara otomatis
-                const inputs = window.parent.document.querySelectorAll('input[type="text"]');
-                for (let input of inputs) {
-                    if (input.placeholder && input.placeholder.includes("Contoh: Beras")) {
-                        input.value = decodedText;
-                        input.dispatchEvent(new Event('input', { bubbles: true }));
-                        // Simulasi tombol Enter
-                        input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', charCode: 13, keyCode: 13, bubbles: true }));
-                        break;
-                    }
+                if (!scannerRunning) {
+                    scannerRunning = true;
+                    window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
                 }
             }
             try {
                 let html5QrCode = new Html5Qrcode("reader");
                 html5QrCode.start(
                     { facingMode: "environment" },
-                    { fps: 15, qrbox: { width: 250, height: 100 } },
+                    { fps: 20, qrbox: { width: 250, height: 100 } },
                     onScanSuccess,
                     (errorMessage) => {}
                 ).catch(err => { console.log(err); });
@@ -115,7 +120,14 @@ with tab1:
         components.html(scanner_html, height=220)
 
     # --- 5. PEMROSESAN OTOMATIS LANGSUNG MASUK KERANJANG ---
-    keyword_aktif = input_keyword.strip()
+    # Gabungkan sumber pencarian dari ketikan manual ATAU dari hasil tembakan kamera
+    keyword_aktif = ""
+    if st.session_state.scan_trigger:
+        keyword_aktif = st.session_state.scan_trigger
+        st.session_state.scan_trigger = "" # Reset setelah diambil
+    elif input_keyword:
+        keyword_aktif = input_keyword.strip()
+
     if keyword_aktif:
         df_match = pd.DataFrame()
 
