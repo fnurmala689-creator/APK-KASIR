@@ -261,7 +261,7 @@ with tab1:
     kamera_aktif = st.session_state.get("toggle_kamera_box", False)
     expander_terbuka = len(st.session_state.keranjang) == 0 or kamera_aktif
 
-    with st.expander("🔍 Klik untuk Cari Barang / Buka Scanner Kamera", expanded=expander_terbuka):
+    with st.expander("🔍 Klik untuk Input", expanded=expander_terbuka):
         st.text_input(
             "Ketik nama barang / barcode lalu Enter:",
             placeholder="Contoh: Beras atau 899111",
@@ -527,7 +527,7 @@ with tab1:
         col_btn1, col_btn2 = st.columns(2)
         with col_btn1:
             st.download_button(
-                label="🖨️ Cetak Nota ESC/POS",
+                label="🖨️ Cetak Nota",
                 data=bytes(raw_bytes),
                 file_name=nama_file_bin,
                 mime="application/octet-stream",
