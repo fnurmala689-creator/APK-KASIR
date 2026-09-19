@@ -65,7 +65,7 @@ with tab2:
     st.dataframe(df_database_tampil, use_container_width=True)
 
 with tab1:
-    st.subheader("1. Pilih Jenis Pelanggan & Tambah Barang")
+    st.subheader("1. Pilih Jenis Pelanggan & Scan Barang")
     
     jenis_pelanggan = st.selectbox(
         "🏷️ Pilih Level Harga / Jenis Pelanggan:", 
@@ -76,7 +76,7 @@ with tab1:
     if kolom_harga_pilihan not in df_produk.columns:
         kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
     
-    # --- TOMBOL SCANNER KAMERA BELAKANG (PREVIEW DIPERBESAR & JELAS) ---
+    # --- TOMBOL SCANNER KAMERA BELAKANG ---
     st.markdown("📷 **Scanner Kamera Belakang**")
     
     scanner_html = f"""
@@ -86,7 +86,6 @@ with tab1:
             <button id="close-btn" onclick="stopScanner()" style="background-color: #ff4b4b; color: white; border: none; padding: 10px 16px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; display: none;">🛑 Tutup Kamera</button>
             <span id="info-txt" style="font-size: 13px; color: #495057; font-weight: 500;">Tekan tombol untuk mulai scan barcode</span>
         </div>
-        <!-- Area preview kamera diperbesar agar jelas -->
         <div id="reader" style="width: 100%; max-width: 450px; margin: 0 auto;"></div>
     </div>
 
@@ -132,66 +131,59 @@ with tab1:
     """
     components.html(scanner_html, height=340)
 
-    # Kotak pencarian utama tunggal yang bersih (sinkron dengan hasil scan)
+    # Input alternatif manual (jika tidak pakai kamera atau mau ketik kode/nama manual secara ringkas)
     keyword_cari = st.text_input(
-        "🔍 Cari Nama Barang atau Scan Barcode:", 
+        "⌨️ Atau Ketik Barcode / Nama Barang Manual:", 
         value=st.session_state.scanned_barcode,
-        placeholder="Ketik nama atau hasil scan barcode..."
+        placeholder="Ketik kode barcode atau nama barang..."
     )
     
-    # Sinkronisasi manual jika user mengetik sendiri
-    if keyword_cari != st.session_state.scanned_barcode and not query_params:
+    if keyword_cari != st.session_state.scanned_barcode:
         st.session_state.scanned_barcode = keyword_cari
 
-    df_produk_aktif = df_produk.copy()
-    
-    if keyword_cari:
-        if kolom_barcode and kolom_barcode in df_produk_aktif.columns:
-            match_barcode = df_produk_aktif[df_produk_aktif[kolom_barcode].astype(str).str.contains(keyword_cari, case=False, na=False)]
-            if len(match_barcode) > 0:
-                df_produk_aktif = match_barcode
-            else:
-                df_produk_aktif = df_produk_aktif[
-                    df_produk_aktif[kolom_nama_barang].astype(str).str.contains(keyword_cari, case=False, na=False)
-                ]
-        else:
-            df_produk_aktif = df_produk_aktif[
-                df_produk_aktif[kolom_nama_barang].astype(str).str.contains(keyword_cari, case=False, na=False)
-            ]
-    
-    if len(df_produk_aktif) > 0:
-        col_input1, col_input2, col_input3 = st.columns([2, 1, 1])
-        
-        with col_input1:
-            pilihan_barang = st.selectbox("Pilih Barang:", df_produk_aktif[kolom_nama_barang], key="pilihan_barang_box")
-            data_terpilih = df_produk_aktif[df_produk_aktif[kolom_nama_barang] == pilihan_barang].iloc[0]
-            
-            harga_otomatis = int(data_terpilih[kolom_harga_pilihan])
-            st.caption(f"Harga Satuan ({jenis_pelanggan}): Rp {harga_otomatis:,.0f}".replace(',', '.'))
-        
-        with col_input2:
-            qty_pilih = st.number_input("Jumlah (Qty)", min_value=1, value=1, key="qty_pilih_input")
-            
-        with col_input3:
-            st.write("") 
-            st.write("")
-            tambah_btn = st.button("➕ Tambah", key="tambah_keranjang_btn")
+    # Logika Otomatis Masuk Keranjang jika Barcode / Pencarian Cocok
+    if st.session_state.scanned_barcode:
+        query_val = st.session_state.scanned_barcode.strip()
+        df_match = pd.DataFrame()
 
-        if tambah_btn:
-            subtotal = qty_pilih * harga_otomatis
-            st.session_state.keranjang.append({
-                "Nama Barang": pilihan_barang,
-                "Qty": qty_pilih,
-                "Harga Satuan": harga_otomatis,
-                "Subtotal": subtotal
-            })
-            st.session_state.scanned_barcode = ""
-            st.toast(f"Berhasil menambahkan {pilihan_barang} ({jenis_pelanggan})!", icon="✅")
-    else:
-        st.warning("Barang atau Barcode tidak ditemukan di database.")
-        if st.button("🔄 Reset Pencarian"):
+        # Cari berdasarkan kolom barcode dulu jika ada
+        if kolom_barcode and kolom_barcode in df_produk.columns:
+            df_match = df_produk[df_produk[kolom_barcode].astype(str).str.strip() == query_val]
+
+        # Jika tidak ketemu di barcode, cari berdasarkan nama barang (mengandung teks)
+        if len(df_match) == 0:
+            df_match = df_produk[df_produk[kolom_nama_barang].astype(str).str.contains(query_val, case=False, na=False)]
+
+        if len(df_match) > 0:
+            data_terpilih = df_match.iloc[0]
+            nama_barang_ditemukan = data_terpilih[kolom_nama_barang]
+            harga_otomatis = int(data_terpilih[kolom_harga_pilihan])
+
+            # Cek apakah barang ini sudah ada di keranjang, jika sudah tambah Qty-nya, jika belum masukkan baru
+            sudah_ada = False
+            for item in st.session_state.keranjang:
+                if item["Nama Barang"] == nama_barang_ditemukan and item["Harga Satuan"] == harga_otomatis:
+                    item["Qty"] += 1
+                    item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
+                    sudah_ada = True
+                    break
+            
+            if not sudah_ada:
+                st.session_state.keranjang.append({
+                    "Nama Barang": nama_barang_ditemukan,
+                    "Qty": 1,
+                    "Harga Satuan": harga_otomatis,
+                    "Subtotal": harga_otomatis
+                })
+
+            st.toast(f"✅ Berhasil menambahkan: {nama_barang_ditemukan} (Rp {harga_otomatis:,.0f})".replace(',', '.'), icon="🛒")
             st.session_state.scanned_barcode = ""
             st.rerun()
+        else:
+            st.warning(f"⚠️ Barang dengan kode/nama '{query_val}' tidak ditemukan di database.")
+            if st.button("🔄 Reset"):
+                st.session_state.scanned_barcode = ""
+                st.rerun()
 
     st.divider()
     st.subheader("2. Keranjang Belanja")
@@ -326,11 +318,9 @@ with tab1:
         raw_bytes.extend(BOLD_OFF)
         raw_bytes.extend(CUT_PAPER)
 
-        # --- BUAT NAMA FILE UNIK BERDASARKAN WAKTU ---
         timestamp_file = datetime.now().strftime("%d%m%y_%H%M%S")
         nama_file_bin = f"nota_{timestamp_file}.bin"
 
-        # --- BUAT LINK WHATSAPP ---
         pesan_wa = f"*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n" \
                    f"----------------------------------\n" \
                    f"Tanggal : {waktu_sekarang}\n" \
@@ -348,7 +338,6 @@ with tab1:
         encoded_wa = urllib.parse.quote(pesan_wa)
         whatsapp_url = f"https://api.whatsapp.com/send?text={encoded_wa}"
 
-        # Tombol Aksi Akhir
         col_btn1, col_btn2 = st.columns(2)
         
         with col_btn1:
@@ -363,11 +352,11 @@ with tab1:
         with col_btn2:
             st.markdown(f"""
                 <div style="text-align: center;">
-                    <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 10px 20px; text-decoration: none; font-size: 15px; border-radius: 4px; font-weight: bold; display: block; margin-top: 2px;">
+                    <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 10px 20px; text-decoration: none; font-size: 15px; border-radius: 4px; font-weight: block; display: block; margin-top: 2px;">
                         💬 Kirim via WhatsApp
                     </a>
                 </div>
             """, unsafe_allow_html=True)
 
     else:
-        st.info("Keranjang masih kosong. Silakan cari dan tambah barang di atas.")
+        st.info("Keranjang masih kosong. Silakan scan barcode produk menggunakan kamera di atas.")
