@@ -5,10 +5,10 @@ from datetime import datetime
 import urllib.parse
 from streamlit_qrcode_scanner import qrcode_scanner
 
-st.set_page_config(page_title="SELAMAT DATANG DI TOKO JABON KIDUL SEPUR", page_icon="🛒")
+st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
 
-st.title("😎 TOKO JABON KIDUL SEPUR")
-st.markdown("Don't Forget to Pray")
+st.title("🏪 Kasir Toko Sembako")
+st.markdown("Aplikasi Kasir Cepat dengan Scanner Kamera & Pencarian Manual")
 
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
@@ -178,6 +178,8 @@ def kosongkan_keranjang():
     st.session_state.pesan = ("info", "🗑️ Keranjang dikosongkan. Klik 'Batalkan Input Terakhir' untuk mengembalikan.")
     st.session_state.last_scan = ""
     st.session_state.konfirmasi_kosong = False
+    st.session_state.diskon_input = 0
+    st.session_state.ongkir_input = 0
     st.session_state.editor_counter += 1
 
 
@@ -313,7 +315,25 @@ with tab1:
         )
         st.caption("💡 Klik kolom Qty untuk mengetik jumlah. Isi 0 untuk menghapus barang dari keranjang.")
 
-        total_belanja_semua = int(df_keranjang["Subtotal"].sum())
+        subtotal_barang = int(df_keranjang["Subtotal"].sum())
+
+        col_dk1, col_dk2 = st.columns(2)
+        with col_dk1:
+            diskon_input = st.number_input(
+                "Diskon (Rp)", min_value=0, value=0, step=500, key="diskon_input",
+                help="Kosongkan / isi 0 kalau tidak ada diskon. Tidak akan dicetak di nota jika 0.",
+            )
+        with col_dk2:
+            ongkir = int(st.number_input(
+                "Ongkir (Rp)", min_value=0, value=0, step=500, key="ongkir_input",
+                help="Kosongkan / isi 0 kalau tidak ada ongkir. Tidak akan dicetak di nota jika 0.",
+            ))
+
+        diskon = min(int(diskon_input), subtotal_barang)
+        if int(diskon_input) > subtotal_barang:
+            st.warning("⚠️ Diskon melebihi total belanja, jadi dihitung maksimal sebesar total belanja.")
+
+        total_belanja_semua = subtotal_barang - diskon + ongkir
         st.metric(label="TOTAL YANG HARUS DIBAYAR", value=f"Rp {rp(total_belanja_semua)}")
 
         col_aksi1, col_aksi2 = st.columns(2)
@@ -365,9 +385,18 @@ with tab1:
             space = printer_width - (len(label) + len(val))
             return label + (" " * max(1, space)) + val
 
-        sub_total_str = rp(total_belanja_semua)
+        total_str = rp(total_belanja_semua)
         tunai_str = rp(uang_tunai)
         kembalian_str = rp(uang_kembalian)
+
+        # Rincian (Subtotal/Diskon/Ongkir) hanya muncul kalau ada diskon atau ongkir
+        rincian = []
+        if diskon > 0 or ongkir > 0:
+            rincian.append(("Subtotal", rp(subtotal_barang)))
+            if diskon > 0:
+                rincian.append(("Diskon", "-" + rp(diskon)))
+            if ongkir > 0:
+                rincian.append(("Ongkir", rp(ongkir)))
 
         lines = [
             "TOKO JABON KIDUL SEPUR",
@@ -382,11 +411,13 @@ with tab1:
             lines.append(item["Nama Barang"])
             lines.append(baris_kiri_kanan(f"{rp(item['Harga Satuan'])} x {item['Qty']} item", rp(item["Subtotal"])))
             lines.append("")
+        lines.append("-" * printer_width)
+        if rincian:
+            for lbl, val in rincian:
+                lines.append(baris_kiri_kanan(lbl, val))
+            lines.append("-" * printer_width)
         lines += [
-            "-" * printer_width,
-            baris_kiri_kanan("Subtotal", sub_total_str),
-            "-" * printer_width,
-            baris_kiri_kanan("Total", sub_total_str),
+            baris_kiri_kanan("Total", total_str),
             baris_kiri_kanan("Tunai", tunai_str),
             baris_kiri_kanan("Kembalian", kembalian_str),
             "-" * printer_width,
@@ -432,9 +463,11 @@ with tab1:
             add_line("")
 
         add_line("-" * printer_width, ALIGN_CENTER)
-        add_line(baris_kiri_kanan("Subtotal", sub_total_str))
-        add_line("-" * printer_width, ALIGN_CENTER)
-        add_line(baris_kiri_kanan("Total", sub_total_str), bold=True)
+        if rincian:
+            for lbl, val in rincian:
+                add_line(baris_kiri_kanan(lbl, val))
+            add_line("-" * printer_width, ALIGN_CENTER)
+        add_line(baris_kiri_kanan("Total", total_str), bold=True)
         add_line(baris_kiri_kanan("Tunai", tunai_str))
         add_line(baris_kiri_kanan("Kembalian", kembalian_str))
         add_line("-" * printer_width, ALIGN_CENTER)
@@ -460,9 +493,13 @@ with tab1:
                 f"• {item['Nama Barang']}\n"
                 f"  {rp(item['Harga Satuan'])} x {item['Qty']} = *Rp {rp(item['Subtotal'])}*\n\n"
             )
+        pesan_wa += "----------------------------------\n"
+        if rincian:
+            for lbl, val in rincian:
+                pesan_wa += f"{lbl:<9}: Rp {val}\n".replace("Rp -", "-Rp ")
+            pesan_wa += "----------------------------------\n"
         pesan_wa += (
-            "----------------------------------\n"
-            f"Total    : *Rp {sub_total_str}*\n"
+            f"Total    : *Rp {total_str}*\n"
             f"Tunai    : Rp {tunai_str}\n"
             f"Kembalian: Rp {kembalian_str}\n"
             "----------------------------------\n"
