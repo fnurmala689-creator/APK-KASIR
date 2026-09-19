@@ -5,10 +5,10 @@ from datetime import datetime
 import urllib.parse
 from streamlit_qrcode_scanner import qrcode_scanner
 
-st.set_page_config(page_title="Aplikasi Kasir Toko Sembako", page_icon="🏪")
+st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🤞")
 
-st.title("🏪 Kasir Toko Sembako")
-st.markdown("Aplikasi Kasir Cepat dengan Scanner Kamera & Pencarian Manual")
+st.title("😊 TOKO JABON KIDUL SEPUR")
+st.markdown("Don't Forget to Pray")
 
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
@@ -115,12 +115,10 @@ def pilih_produk(nama, harga):
     st.session_state.pilihan = []
     st.session_state.pesan = ("success", f"✅ Berhasil masuk keranjang: **{nama}** (Rp {rp(harga)})")
 
-
-def submit_teks():
+    def submit_teks():
     """Dipanggil saat Enter ditekan di kolom pencarian."""
     st.session_state.scan_trigger = st.session_state.input_text_kasir.strip()
     st.session_state.input_text_kasir = ""
-
 
 def terapkan_edit_qty():
     """Dipanggil saat Qty di tabel keranjang diubah. Qty 0 = hapus barang."""
@@ -183,13 +181,13 @@ def kosongkan_keranjang():
     st.session_state.editor_counter += 1
 
 
-tab1, tab2 = st.tabs(["🛒 Kasir & Keranjang", "📋 Daftar Harga (Database)"])
+tab1, tab2 = st.tabs(["🛒 Kasir", "📋 Database Harga"])
 
 # ================= TAB 2 =================
 with tab2:
-    st.subheader("Daftar Barang & Harga Bertingkat (Google Sheets)")
+    st.subheader("Daftar Barang & Harga")
     search_database = st.text_input(
-        "🔍 Cari produk di database:",
+        "🔍 Cari produk :",
         placeholder="Ketik nama barang atau barcode...",
         key="search_db",
     )
@@ -204,7 +202,7 @@ with tab2:
 # ================= TAB 1 =================
 with tab1:
     jenis_pelanggan = st.selectbox(
-        "🏷️ Pilih Level Harga / Jenis Pelanggan:",
+        "🏷️ Pilih Jenis Pelanggan :",
         ["Umum", "Bakul", "Umum Antar", "Usaha"],
         key="pilih_level_harga",
     )
@@ -224,7 +222,7 @@ with tab1:
             on_change=submit_teks,
         )
 
-        buka_kamera = st.checkbox("📷 Buka Kamera Scanner", value=False, key="toggle_kamera_box")
+        buka_kamera = st.checkbox("📷 Buka Scanner", value=False, key="toggle_kamera_box")
 
         if buka_kamera:
             # key berubah tiap scan sukses -> scanner di-reset,
@@ -265,7 +263,7 @@ with tab1:
                 pilih_produk(*daftar[0])
             else:
                 st.session_state.pilihan = daftar
-                st.session_state.pesan = ("info", f"Ditemukan beberapa produk untuk '{keyword_aktif}':")
+                st.session_state.pesan = ("info", f"Pilih yang mana nih '{keyword_aktif}':")
 
     # --- TAMPILKAN PESAN & PILIHAN ---
     if st.session_state.pesan:
@@ -279,9 +277,6 @@ with tab1:
             on_click=pilih_produk,
             args=(nm, hg),
         )
-
-    if st.session_state.get("last_scan"):
-        st.caption(f"Scan terakhir terbaca: `{st.session_state.last_scan}`")
 
     if st.session_state.riwayat:
         st.button(
@@ -334,14 +329,14 @@ with tab1:
             st.warning("⚠️ Diskon melebihi total belanja, jadi dihitung maksimal sebesar total belanja.")
 
         total_belanja_semua = subtotal_barang - diskon + ongkir
-        st.metric(label="TOTAL YANG HARUS DIBAYAR", value=f"Rp {rp(total_belanja_semua)}")
+        st.metric(label="TOTAL", value=f"Rp {rp(total_belanja_semua)}")
 
         col_aksi1, col_aksi2 = st.columns(2)
         with col_aksi1:
             nama_pembeli = st.text_input("Nama Pelanggan", value="Pelanggan Umum", key="nama_pelanggan_input")
         with col_aksi2:
             uang_tunai = st.number_input(
-                "Uang Tunai (Rp)", min_value=0, value=total_belanja_semua, step=5000, key=f"uang_tunai_{total_belanja_semua}"
+                "Bayar (Rp)", min_value=0, value=total_belanja_semua, step=5000, key=f"uang_tunai_{total_belanja_semua}"
             )
 
         # --- BATALKAN / HAPUS BARANG ---
@@ -349,7 +344,7 @@ with tab1:
         col_h1, col_h2 = st.columns([3, 2])
         with col_h1:
             st.selectbox(
-                "❌ Pilih barang yang ingin dibatalkan:",
+                "❌ Pilih barang yang dibatalkan:",
                 options=list(range(len(st.session_state.keranjang))),
                 format_func=lambda i: f"{i + 1}. {st.session_state.keranjang[i]['Nama Barang']} (x{st.session_state.keranjang[i]['Qty']})",
                 key=key_hapus,
