@@ -67,66 +67,66 @@ with tab1:
     # --- 3. PILIH JENIS PELANGGAN ---
     jenis_pelanggan = st.selectbox(
         "🏷️ Pilih Level Harga / Jenis Pelanggan:", 
-        ["Umum", "Bakul", "Umum Antar", "Usaha"]
+        ["Umum", "Bakul", "Umum Antar", "Usaha"],
+        key="pilih_level_harga"
     )
     
     kolom_harga_pilihan = f"Harga {jenis_pelanggan}"
     if kolom_harga_pilihan not in df_produk.columns:
         kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
     
-    st.divider()
+    # --- 4. INPUT PENCARIAN & KAMERA DALAM EXPANDER OTOMATIS ---
+    # Expander terbuka otomatis jika keranjang kosong, dan tertutup otomatis jika sudah ada isi
+    status_buka_expander = len(st.session_state.keranjang) == 0
+    
+    with st.expander("🔍 Klik untuk Cari Barang / Buka Scanner Kamera", expanded=status_buka_expander):
+        # Input manual text biasa
+        input_keyword = st.text_input(
+            "Ketik nama barang / barcode lalu Enter:",
+            placeholder="Contoh: Beras atau 899111",
+            key="input_text_kasir"
+        )
 
-    # --- 4. INPUT PENCARIAN & KAMERA SCANNER ---
-    st.markdown("🔍 **Cari Nama Barang atau Gunakan Scanner Barcode:**")
+        col_cam_btn1, col_cam_btn2 = st.columns([1, 4])
+        with col_cam_btn1:
+            buka_kamera = st.checkbox("📷 Buka Kamera Scanner", value=False, key="toggle_kamera_box")
 
-    # Input manual text biasa
-    input_keyword = st.text_input(
-        "Ketik nama barang / barcode lalu Enter:",
-        placeholder="Contoh: Beras atau 899111",
-        key="input_text_kasir"
-    )
-
-    col_cam_btn1, col_cam_btn2 = st.columns([1, 4])
-    with col_cam_btn1:
-        buka_kamera = st.checkbox("📷 Buka Kamera Scanner", value=False, key="toggle_kamera_box")
-
-    # Scanner HTML menggunakan metode reload parameter URL yang aman untuk langsung memicu proses keranjang
-    if buka_kamera:
-        scanner_html = """
-        <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #ced4da; text-align: center; margin-bottom: 10px;">
-            <div id="reader" style="width: 100%; max-width: 350px; margin: 0 auto;"></div>
-            <p style="font-size: 12px; color: #666; margin-top: 5px;">Arahkan kamera ke barcode produk</p>
-        </div>
-        <script src="https://unpkg.com/html5-qrcode"></script>
-        <script>
-            let scannerRunning = false;
-            function onScanSuccess(decodedText, decodedResult) {
-                if (!scannerRunning) {
-                    scannerRunning = true;
-                    window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
+        # Scanner HTML menggunakan metode reload parameter URL yang aman
+        if buka_kamera:
+            scanner_html = """
+            <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #ced4da; text-align: center; margin-bottom: 10px;">
+                <div id="reader" style="width: 100%; max-width: 350px; margin: 0 auto;"></div>
+                <p style="font-size: 12px; color: #666; margin-top: 5px;">Arahkan kamera ke barcode produk</p>
+            </div>
+            <script src="https://unpkg.com/html5-qrcode"></script>
+            <script>
+                let scannerRunning = false;
+                function onScanSuccess(decodedText, decodedResult) {
+                    if (!scannerRunning) {
+                        scannerRunning = true;
+                        window.location.href = window.location.pathname + "?scan=" + encodeURIComponent(decodedText);
+                    }
                 }
-            }
-            try {
-                let html5QrCode = new Html5Qrcode("reader");
-                html5QrCode.start(
-                    { facingMode: "environment" },
-                    { fps: 20, qrbox: { width: 250, height: 100 } },
-                    onScanSuccess,
-                    (errorMessage) => {}
-                ).catch(err => { console.log(err); });
-            } catch(e) {}
-        </script>
-        """
-        components.html(scanner_html, height=220)
+                try {
+                    let html5QrCode = new Html5Qrcode("reader");
+                    html5QrCode.start(
+                        { facingMode: "environment" },
+                        { fps: 20, qrbox: { width: 250, height: 100 } },
+                        onScanSuccess,
+                        (errorMessage) => {}
+                    ).catch(err => { console.log(err); });
+                } catch(e) {}
+            </script>
+            """
+            components.html(scanner_html, height=220)
 
     # --- 5. PEMROSESAN OTOMATIS LANGSUNG MASUK KERANJANG ---
-    # Gabungkan sumber pencarian dari ketikan manual ATAU dari hasil tembakan kamera
     keyword_aktif = ""
     if st.session_state.scan_trigger:
         keyword_aktif = st.session_state.scan_trigger
         st.session_state.scan_trigger = "" # Reset setelah diambil
-    elif input_keyword:
-        keyword_aktif = input_keyword.strip()
+    elif 'input_text_kasir' in st.session_state and st.session_state.input_text_kasir:
+        keyword_aktif = st.session_state.input_text_kasir.strip()
 
     if keyword_aktif:
         df_match = pd.DataFrame()
@@ -330,14 +330,14 @@ with tab1:
                    f"----------------------------------\n"
         for item in st.session_state.keranjang:
             pesan_wa += f"• {item['Nama Barang']}\n  {item['Harga Satuan']:,.0f} x {item['Qty']} = *Rp {item['Subtotal']:,.0f}*\n\n".replace(',', '.')
-        pesan_wa += f"----------------------------------\n" \
+        pessan_wa_final = pesan_wa + f"----------------------------------\n" \
                     f"Total    : *Rp {total_belanja_semua:,.0f}*\n" \
                     f"Tunai    : Rp {uang_tunai:,.0f}\n" \
                     f"Kembalian: Rp {uang_kembalian:,.0f}\n" \
                     f"----------------------------------\n" \
                     f"Terima Kasih & Semoga Berkah".replace(',', '.')
         
-        encoded_wa = urllib.parse.quote(pesan_wa)
+        encoded_wa = urllib.parse.quote(pessan_wa_final)
         whatsapp_url = f"https://api.whatsapp.com/send?text={encoded_wa}"
 
         col_btn1, col_btn2 = st.columns(2)
