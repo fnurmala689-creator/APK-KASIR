@@ -32,14 +32,13 @@ df_produk.columns = df_produk.columns.str.strip()
 kolom_nama_opsi = ["Nama Barang", "nama barang", "Nama", "nama", "Produk", "produk"]
 kolom_nama_barang = next((col for col in kolom_nama_opsi if col in df_produk.columns), df_produk.columns[0])
 
-# Deteksi kolom barcode (jika ada)
+# Deteksi kolom barcode
 kolom_barcode_opsi = ["Barcode", "barcode", "SKU", "sku", "Kode", "kode"]
 kolom_barcode = next((col for col in kolom_barcode_opsi if col in df_produk.columns), None)
 
 if "keranjang" not in st.session_state:
     st.session_state.keranjang = []
 
-# State khusus untuk menampung hasil scan kamera secara instan
 if "scan_trigger" not in st.session_state:
     st.session_state.scan_trigger = ""
 
@@ -75,12 +74,10 @@ with tab1:
     if kolom_harga_pilihan not in df_produk.columns:
         kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
     
-    # --- 4. INPUT PENCARIAN & KAMERA DALAM EXPANDER OTOMATIS ---
-    # Expander terbuka otomatis jika keranjang kosong, dan tertutup otomatis jika sudah ada isi
+    # --- 4. INPUT PENCARIAN & KAMERA DALAM EXPANDER ---
     status_buka_expander = len(st.session_state.keranjang) == 0
     
     with st.expander("🔍 Klik untuk Cari Barang / Buka Scanner Kamera", expanded=status_buka_expander):
-        # Input manual text biasa
         input_keyword = st.text_input(
             "Ketik nama barang / barcode lalu Enter:",
             placeholder="Contoh: Beras atau 899111",
@@ -91,7 +88,6 @@ with tab1:
         with col_cam_btn1:
             buka_kamera = st.checkbox("📷 Buka Kamera Scanner", value=False, key="toggle_kamera_box")
 
-        # Scanner HTML menggunakan metode reload parameter URL yang aman
         if buka_kamera:
             scanner_html = """
             <div style="background: #f8f9fa; padding: 10px; border-radius: 8px; border: 1px solid #ced4da; text-align: center; margin-bottom: 10px;">
@@ -120,22 +116,22 @@ with tab1:
             """
             components.html(scanner_html, height=220)
 
-    # --- 5. PEMROSESAN OTOMATIS LANGSUNG MASUK KERANJANG ---
+    # --- 5. PEMROSESAN OTOMATIS KERANJANG ---
     keyword_aktif = ""
     if st.session_state.scan_trigger:
         keyword_aktif = st.session_state.scan_trigger
-        st.session_state.scan_trigger = "" # Reset setelah diambil
+        st.session_state.scan_trigger = "" 
     elif 'input_text_kasir' in st.session_state and st.session_state.input_text_kasir:
         keyword_aktif = st.session_state.input_text_kasir.strip()
+        # Bersihkan input text agar tidak melooping terus menerus
+        st.session_state.input_text_kasir = ""
 
     if keyword_aktif:
         df_match = pd.DataFrame()
 
-        # Cocokkan dengan kolom barcode terlebih dahulu
         if kolom_barcode and kolom_barcode in df_produk.columns:
             df_match = df_produk[df_produk[kolom_barcode].astype(str).str.strip() == keyword_aktif]
 
-        # Jika tidak ketemu di barcode, cocokkan dengan nama barang
         if len(df_match) == 0:
             df_match = df_produk[df_produk[kolom_nama_barang].astype(str).str.contains(keyword_aktif, case=False, na=False)]
 
@@ -145,7 +141,6 @@ with tab1:
                 nama_barang_ditemukan = data_terpilih[kolom_nama_barang]
                 harga_otomatis = int(data_terpilih[kolom_harga_pilihan])
 
-                # Langsung masukkan ke keranjang
                 sudah_ada = False
                 for item in st.session_state.keranjang:
                     if item["Nama Barang"] == nama_barang_ditemukan and item["Harga Satuan"] == harga_otomatis:
