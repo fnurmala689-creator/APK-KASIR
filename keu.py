@@ -1,6 +1,8 @@
 import streamlit as st
 import pandas as pd
 import copy
+import json
+import requests
 from datetime import datetime
 import urllib.parse
 from streamlit_qrcode_scanner import qrcode_scanner
@@ -58,6 +60,8 @@ def muat_produk():
                 .replace("", "0")
                 .astype(int)
             )
+        else:
+            df[c] = df[c].fillna("")  # sel teks kosong tetap kosong (bukan "nan")
     return df, ok
 
 
@@ -94,6 +98,11 @@ defaults = {
     "scan_trigger": "",
     "scan_counter": 0,
     "scan_counter_db": 0,  # counter scanner di tab Daftar Harga
+    "scan_counter_tambah": 0,  # counter scanner di tab Tambah Barang
+    "tambah_barcode": "",
+    "tambah_nama": "",
+    "tambah_riwayat": [],  # barang yang ditambahkan selama sesi ini
+    "pesan_tambah": None,
     "last_scan": "",
     "editor_counter": 0,  # untuk reset tabel keranjang setelah diedit
     "riwayat": [],        # riwayat keranjang untuk fitur batalkan
@@ -205,7 +214,69 @@ def hapus_pencarian_db():
     st.session_state.search_db = ""
 
 
-tab1, tab2 = st.tabs(["🛒 Kasir", "📋 Database Harga"])
+def ambil_secret(nama):
+    """Baca pengaturan rahasia dari Streamlit Secrets (kosong kalau belum diisi)."""
+    try:
+        return str(st.secrets[nama]).strip()
+    except Exception:
+        return ""
+
+
+def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
+    """Kirim satu barang baru ke Google Sheets lewat Apps Script."""
+    barcode = st.session_state.tambah_barcode.strip()
+    nama = st.session_state.tambah_nama.strip()
+    url = ambil_secret("SHEET_WEBHOOK_URL")
+    token = ambil_secret("SHEET_TOKEN")
+
+    if not barcode:
+        st.session_state.pesan_tambah = ("warning", "⚠️ Barcode masih kosong. Scan atau ketik dulu.")
+        return
+    if not url or not token:
+        st.session_state.pesan_tambah = (
+            "error",
+            "⚠️ Koneksi ke spreadsheet belum diatur (SHEET_WEBHOOK_URL dan SHEET_TOKEN belum ada di Secrets).",
+        )
+        return
+
+    values = {kol_barcode: barcode, kol_nama: nama}
+    for c in kol_harga_list:
+        v = int(st.session_state.get(f"tambah_{c}", 0) or 0)
+        values[c] = v if v > 0 else ""  # harga 0 dibiarkan kosong, diisi nanti
+
+    payload = {"token": token, "kolom_barcode": kol_barcode, "values": values}
+    try:
+        r = requests.post(
+            url,
+            data=json.dumps(payload),
+            headers={"Content-Type": "text/plain"},
+            timeout=25,
+        )
+        hasil = r.json()
+    except Exception as e:
+        st.session_state.pesan_tambah = (
+            "error",
+            f"⚠️ Gagal menghubungi spreadsheet. Cek alamat Apps Script dan pengaturan aksesnya. ({e})",
+        )
+        return
+
+    if hasil.get("ok"):
+        st.session_state.tambah_riwayat.append(
+            (datetime.now().strftime("%H:%M:%S"), barcode, nama or "(belum ada nama)")
+        )
+        st.session_state.pesan_tambah = (
+            "success",
+            f"✅ Tersimpan di baris {hasil.get('baris')} spreadsheet: {barcode}",
+        )
+        st.session_state.tambah_barcode = ""
+        st.session_state.tambah_nama = ""
+        for c in kol_harga_list:
+            st.session_state[f"tambah_{c}"] = 0
+    else:
+        st.session_state.pesan_tambah = ("error", f"⚠️ Ditolak spreadsheet: {hasil.get('error', 'tidak diketahui')}")
+
+
+tab1, tab2, tab3 = st.tabs(["🛒 Kasir", "📋 Database Harga", "➕ Tambah Barang"])
 
 # ================= TAB 2 =================
 with tab2:
@@ -245,6 +316,69 @@ with tab2:
         if c.lower().startswith("harga"):
             df_tampil[c] = df_tampil[c].map(rp)
     st.dataframe(df_tampil, use_container_width=True)
+
+# ================= TAB 3 =================
+with tab3:
+    st.subheader("Tambah Barang Baru ke Spreadsheet")
+    kolom_harga_list = [c for c in df_produk.columns if c.lower().startswith("harga")]
+
+    if not kolom_barcode:
+        st.error("Kolom Barcode tidak ditemukan di spreadsheet. Pastikan ada kolom bernama 'Barcode'.")
+    else:
+        if not (ambil_secret("SHEET_WEBHOOK_URL") and ambil_secret("SHEET_TOKEN")):
+            st.info("Fitur ini belum aktif. Isi SHEET_WEBHOOK_URL dan SHEET_TOKEN di Secrets aplikasi terlebih dahulu.")
+
+        # Scanner dirender SEBELUM kolom barcode supaya hasilnya bisa langsung terisi
+        buka_kamera_tambah = st.checkbox("📷 Buka Scanner", value=False, key="toggle_kamera_tambah")
+        if buka_kamera_tambah:
+            st.caption("Gunakan satu kamera saja. Matikan scanner di tab lain kalau sedang aktif.")
+            hasil_scan_tambah = qrcode_scanner(key=f"scanner_tambah_{st.session_state.scan_counter_tambah}")
+            if hasil_scan_tambah:
+                st.session_state.tambah_barcode = str(hasil_scan_tambah).strip()
+                st.session_state.scan_counter_tambah += 1
+                st.rerun()
+
+        st.text_input("Barcode", key="tambah_barcode", placeholder="Scan atau ketik barcode...")
+
+        # Peringatan kalau barcode sudah ada (boleh tetap disimpan, mis. untuk satuan berbeda)
+        kode_tambah = norm_kode(st.session_state.tambah_barcode)
+        if kode_tambah and "_kode" in df_produk.columns:
+            sudah_ada = df_produk[df_produk["_kode"] == kode_tambah]
+            if len(sudah_ada) > 0:
+                nama_ada = ", ".join(sudah_ada[kolom_nama_barang].astype(str).tolist())
+                st.warning(f"⚠️ Barcode ini sudah ada di database: {nama_ada}. Kalau ini satuan lain (misalnya renteng), silakan tetap simpan dengan nama yang berbeda.")
+
+        st.text_input(
+            "Nama Barang (boleh dikosongkan, bisa diisi nanti di laptop)",
+            key="tambah_nama",
+        )
+
+        if kolom_harga_list:
+            st.caption("Harga (boleh dikosongkan / 0, bisa diisi nanti di laptop)")
+            kolom_ui = st.columns(len(kolom_harga_list))
+            for kol, c in zip(kolom_ui, kolom_harga_list):
+                with kol:
+                    st.number_input(c, min_value=0, value=0, step=500, key=f"tambah_{c}")
+
+        st.button(
+            "💾 Simpan ke Spreadsheet",
+            type="primary",
+            on_click=simpan_barang,
+            args=(kolom_barcode, kolom_nama_barang, kolom_harga_list),
+        )
+
+        if st.session_state.pesan_tambah:
+            tipe_t, teks_t = st.session_state.pesan_tambah
+            getattr(st, tipe_t)(teks_t)
+
+        if st.session_state.tambah_riwayat:
+            st.markdown("**Ditambahkan pada sesi ini:**")
+            st.dataframe(
+                pd.DataFrame(st.session_state.tambah_riwayat, columns=["Jam", "Barcode", "Nama"]),
+                use_container_width=True,
+                hide_index=True,
+            )
+            st.caption("Data baru muncul di aplikasi kasir sekitar 5 menit setelah tersimpan.")
 
 # ================= TAB 1 =================
 with tab1:
@@ -304,7 +438,7 @@ with tab1:
             daftar = []
             for _, row in df_match.iterrows():
                 harga = int(row[kolom_harga_pilihan])
-                daftar.append((str(row[kolom_nama_barang]), harga))
+                daftar.append((str(row[kolom_nama_barang]).strip() or "(Barang tanpa nama)", harga))
 
             if len(daftar) == 1:
                 pilih_produk(*daftar[0])
