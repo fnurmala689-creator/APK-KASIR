@@ -1,11 +1,13 @@
 import streamlit as st
 import pandas as pd
+import base64
 import copy
 import json
 import re
 import requests
 from datetime import datetime
 import urllib.parse
+import streamlit.components.v1 as components
 from streamlit_qrcode_scanner import qrcode_scanner
 
 st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🤞", layout="wide")
@@ -77,6 +79,133 @@ def norm_kode(x):
 def rp(angka):
     return f"{angka:,.0f}".replace(",", ".")
 
+
+# ============ CETAK LANGSUNG LEWAT BLUETOOTH (BLE) ============
+# Tombol ini berjalan di browser (Web Bluetooth). Hanya jalan di Chrome/Edge,
+# lewat HTTPS, dan hanya untuk printer thermal yang mendukung BLE.
+HTML_CETAK_BLE = """
+<div style="font-family: sans-serif;">
+  <button id="btn" style="width:100%; padding:10px 12px; font-size:15px; font-weight:600;
+          border-radius:8px; border:1px solid #ced4da; background:#ffffff; color:#31333f; cursor:pointer;">
+    🖨️ Cetak via Bluetooth
+  </button>
+  <div id="status" style="font-size:12px; color:#666; margin-top:6px; min-height:16px;"></div>
+</div>
+<script>
+const DATA_B64 = "__DATA__";
+const CHUNK = 20;   // ukuran kiriman per paket (byte). Naikkan (mis. 100) kalau printer kuat dan ingin lebih cepat
+const DELAY = 25;   // jeda antar paket (milidetik)
+const SERVICES = [
+  "000018f0-0000-1000-8000-00805f9b34fb",
+  "e7810a71-73ae-499d-8c15-faa9aef0c3f2",
+  "49535343-fe7d-4ae5-8fa9-9fafd205e455",
+  "0000ff00-0000-1000-8000-00805f9b34fb",
+  "0000ffe0-0000-1000-8000-00805f9b34fb",
+  "0000fff0-0000-1000-8000-00805f9b34fb",
+  "0000fee7-0000-1000-8000-00805f9b34fb",
+  "0000ae30-0000-1000-8000-00805f9b34fb",
+  "0000ff80-0000-1000-8000-00805f9b34fb"
+];
+const btn = document.getElementById("btn");
+const statusEl = document.getElementById("status");
+function setStatus(t) { statusEl.textContent = t; }
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function bytesDariB64(b64) {
+  const bin = atob(b64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return arr;
+}
+
+async function cariKarakteristik(server) {
+  for (const svc of SERVICES) {
+    try {
+      const service = await server.getPrimaryService(svc);
+      const chars = await service.getCharacteristics();
+      for (const c of chars) {
+        if (c.properties.write || c.properties.writeWithoutResponse) return c;
+      }
+    } catch (e) { /* layanan ini tidak ada di printer, coba yang lain */ }
+  }
+  return null;
+}
+
+async function sambungkan() {
+  let device = null, server = null;
+
+  // 1) Coba printer yang pernah diizinkan sebelumnya (tanpa daftar pilihan)
+  if (navigator.bluetooth.getDevices) {
+    try {
+      let idTersimpan = null;
+      try { idTersimpan = localStorage.getItem("kasir_printer_id"); } catch (e) {}
+      if (idTersimpan) {
+        const daftar = await navigator.bluetooth.getDevices();
+        device = daftar.find((d) => d.id === idTersimpan) || null;
+        if (device) server = await device.gatt.connect();
+      }
+    } catch (e) { device = null; server = null; }
+  }
+
+  // 2) Kalau belum ada, tampilkan daftar perangkat untuk dipilih
+  if (!server) {
+    device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: SERVICES
+    });
+    server = await device.gatt.connect();
+    try { localStorage.setItem("kasir_printer_id", device.id); } catch (e) {}
+  }
+
+  const ch = await cariKarakteristik(server);
+  return { device, server, ch };
+}
+
+async function cetak() {
+  btn.disabled = true;
+  let device = null;
+  try {
+    if (!navigator.bluetooth) {
+      setStatus("❌ Browser ini tidak mendukung Web Bluetooth. Gunakan Chrome di Android.");
+      return;
+    }
+    setStatus("Menghubungkan ke printer...");
+    const hasil = await sambungkan();
+    device = hasil.device;
+    if (!hasil.ch) {
+      setStatus("❌ Terhubung ke " + (device.name || "printer") + ", tapi jalur cetaknya tidak dikenali. Kirim ke Claude: nama printer dan UUID layanan (dari nRF Connect).");
+      try { device.gatt.disconnect(); } catch (e) {}
+      return;
+    }
+    const ch = hasil.ch;
+    setStatus("Mencetak ke " + (device.name || "printer") + "...");
+    const data = bytesDariB64(DATA_B64);
+    for (let i = 0; i < data.length; i += CHUNK) {
+      const potong = data.slice(i, i + CHUNK);
+      if (ch.properties.write) {
+        if (ch.writeValueWithResponse) await ch.writeValueWithResponse(potong);
+        else await ch.writeValue(potong);
+      } else {
+        await ch.writeValueWithoutResponse(potong);
+      }
+      await sleep(DELAY);
+    }
+    setStatus("✅ Selesai dicetak");
+    setTimeout(() => { try { device.gatt.disconnect(); } catch (e) {} }, 1500);
+  } catch (e) {
+    if (e && e.name === "NotFoundError") {
+      setStatus("Pemilihan printer dibatalkan, atau printer tidak ditemukan. Pastikan printer menyala dan tidak sedang tersambung ke aplikasi lain.");
+    } else {
+      setStatus("❌ Gagal: " + (e && e.name ? e.name + ": " : "") + (e && e.message ? e.message : e));
+    }
+    try { if (device) device.gatt.disconnect(); } catch (x) {}
+  } finally {
+    btn.disabled = false;
+  }
+}
+btn.addEventListener("click", cetak);
+</script>
+"""
 
 df_produk, data_dari_sheet = muat_produk()
 df_produk = df_produk.copy()
@@ -264,7 +393,8 @@ def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
         hasil = r.json()
     except Exception:
         # Tampilkan cuplikan jawaban supaya penyebabnya kelihatan
-        cuplikan = re.sub(r"<[^>]+>", " ", r.text)
+        cuplikan = re.sub(r"(?is)<(script|style).*?</\1>", " ", r.text)  # buang kode script/style
+        cuplikan = re.sub(r"<[^>]+>", " ", cuplikan)
         cuplikan = re.sub(r"\s+", " ", cuplikan).strip()[:300]
         akhir = r.url.split("?")[0][:100]
         st.session_state.pesan_tambah = (
@@ -619,7 +749,7 @@ with tab1:
         add_line("Telp. 0857 3395 8305", ALIGN_CENTER)
         add_line("-" * printer_width, ALIGN_CENTER)
         add_line(f"Tanggal : {waktu_sekarang}")
-        add_line(f"Kepada : {nama_pembeli}")
+        add_line(f"Kepada : {nama_pembeli} ({jenis_pelanggan})")
         add_line("-" * printer_width, ALIGN_CENTER)
 
         for item in st.session_state.keranjang:
@@ -641,6 +771,7 @@ with tab1:
         raw_bytes.extend(BOLD_ON)
         raw_bytes.extend(b"Terima Kasih & Semoga Berkah\n")
         raw_bytes.extend(BOLD_OFF)
+        raw_bytes.extend(b"\n\n\n")  # beri jarak kertas sebelum dipotong/disobek
         raw_bytes.extend(CUT_PAPER)
 
         nama_file_bin = f"nota_{datetime.now().strftime('%d%m%y_%H%M%S')}.bin"
@@ -650,7 +781,7 @@ with tab1:
             "*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n"
             "----------------------------------\n"
             f"Tanggal : {waktu_sekarang}\n"
-            f"Kepada : {nama_pembeli}\n"
+            f"Kepada : {nama_pembeli} ({jenis_pelanggan})\n"
             "----------------------------------\n"
         )
         for item in st.session_state.keranjang:
@@ -672,10 +803,13 @@ with tab1:
         )
         whatsapp_url = f"https://api.whatsapp.com/send?text={urllib.parse.quote(pesan_wa)}"
 
-        col_btn1, col_btn2 = st.columns(2)
+        col_ble, col_btn1, col_btn2 = st.columns(3)
+        with col_ble:
+            data_b64 = base64.b64encode(bytes(raw_bytes)).decode()
+            components.html(HTML_CETAK_BLE.replace("__DATA__", data_b64), height=110)
         with col_btn1:
             st.download_button(
-                label="🖨️ Cetak Nota",
+                label="📄 Cetak via RawBT",
                 data=bytes(raw_bytes),
                 file_name=nama_file_bin,
                 mime="application/octet-stream",
