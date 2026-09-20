@@ -749,7 +749,7 @@ with tab1:
         add_line("Telp. 0857 3395 8305", ALIGN_CENTER)
         add_line("-" * printer_width, ALIGN_CENTER)
         add_line(f"Tanggal : {waktu_sekarang}")
-        add_line(f"Kepada : {nama_pembeli} ({jenis_pelanggan})")
+        add_line(f"Kepada : {nama_pembeli}")
         add_line("-" * printer_width, ALIGN_CENTER)
 
         for item in st.session_state.keranjang:
@@ -781,7 +781,7 @@ with tab1:
             "*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n"
             "----------------------------------\n"
             f"Tanggal : {waktu_sekarang}\n"
-            f"Kepada : {nama_pembeli} ({jenis_pelanggan})\n"
+            f"Kepada : {nama_pembeli}\n"
             "----------------------------------\n"
         )
         for item in st.session_state.keranjang:
