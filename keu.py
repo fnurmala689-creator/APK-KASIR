@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import copy
 import json
+import re
 import requests
 from datetime import datetime
 import urllib.parse
@@ -252,11 +253,24 @@ def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
             headers={"Content-Type": "text/plain"},
             timeout=25,
         )
-        hasil = r.json()
     except Exception as e:
         st.session_state.pesan_tambah = (
             "error",
-            f"⚠️ Gagal menghubungi spreadsheet. Cek alamat Apps Script dan pengaturan aksesnya. ({e})",
+            f"⚠️ Tidak bisa terhubung ke alamat Apps Script. Cek alamatnya di Secrets. ({e})",
+        )
+        return
+
+    try:
+        hasil = r.json()
+    except Exception:
+        # Tampilkan cuplikan jawaban supaya penyebabnya kelihatan
+        cuplikan = re.sub(r"<[^>]+>", " ", r.text)
+        cuplikan = re.sub(r"\s+", " ", cuplikan).strip()[:300]
+        akhir = r.url.split("?")[0][:100]
+        st.session_state.pesan_tambah = (
+            "error",
+            f"⚠️ Jawaban dari Apps Script bukan data yang dimengerti. "
+            f"Kode HTTP: {r.status_code}. Berakhir di: {akhir}. Isi jawaban: {cuplikan or '(kosong)'}",
         )
         return
 
