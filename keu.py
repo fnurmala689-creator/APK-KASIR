@@ -12,16 +12,31 @@ from streamlit_qrcode_scanner import qrcode_scanner
 
 st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🤞", layout="wide")
 
-# Kurangi ruang kosong di pinggir dan atas supaya muat lebih banyak di layar tablet
+# --- CSS TAMBAHAN AGAR RAMAH PEMULA & LANSIA (UKURAN LEBIH BESAR & JELAS) ---
 st.markdown(
     """
     <style>
     .block-container {
-        padding-top: 2rem;
+        padding-top: 1.5rem;
         padding-bottom: 2rem;
-        padding-left: 2rem;
-        padding-right: 2rem;
+        padding-left: 1.5rem;
+        padding-right: 1.5rem;
         max-width: 100%;
+    }
+    /* Memperbesar ukuran teks secara umum agar mudah dibaca */
+    html, body, [class*="css"] {
+        font-size: 18px !important;
+    }
+    /* Memperbesar tombol agar gampang ditekan */
+    .stButton>button {
+        font-size: 18px !important;
+        font-weight: bold !important;
+        padding: 0.6rem 1rem !important;
+        border-radius: 10px !important;
+    }
+    /* Kotak input lebih tinggi dan jelas */
+    input {
+        font-size: 18px !important;
     }
     </style>
     """,
@@ -29,7 +44,7 @@ st.markdown(
 )
 
 st.title("😊 TOKO JABON KIDUL SEPUR")
-st.markdown("Don't Forget to Pray")
+st.markdown("### 🙏 Don't Forget to Pray")
 
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
@@ -81,20 +96,18 @@ def rp(angka):
 
 
 # ============ CETAK LANGSUNG LEWAT BLUETOOTH (BLE) ============
-# Tombol ini berjalan di browser (Web Bluetooth). Hanya jalan di Chrome/Edge,
-# lewat HTTPS, dan hanya untuk printer thermal yang mendukung BLE.
 HTML_CETAK_BLE = """
 <div style="font-family: sans-serif;">
-  <button id="btn" style="width:100%; padding:10px 12px; font-size:15px; font-weight:600;
-          border-radius:8px; border:1px solid #ced4da; background:#ffffff; color:#31333f; cursor:pointer;">
-    🖨️ Cetak via Bluetooth
+  <button id="btn" style="width:100%; padding:12px; font-size:18px; font-weight:bold;
+          border-radius:10px; border:2px solid #28a745; background:#28a745; color:#ffffff; cursor:pointer;">
+    🖨️ Cetak Struk via Bluetooth
   </button>
-  <div id="status" style="font-size:12px; color:#666; margin-top:6px; min-height:16px;"></div>
+  <div id="status" style="font-size:14px; color:#333; margin-top:6px; min-height:20px; font-weight:bold;"></div>
 </div>
 <script>
 const DATA_B64 = "__DATA__";
-const CHUNK = 20;   // ukuran kiriman per paket (byte). Naikkan (mis. 100) kalau printer kuat dan ingin lebih cepat
-const DELAY = 25;   // jeda antar paket (milidetik)
+const CHUNK = 20;
+const DELAY = 25;
 const SERVICES = [
   "000018f0-0000-1000-8000-00805f9b34fb",
   "e7810a71-73ae-499d-8c15-faa9aef0c3f2",
@@ -126,15 +139,13 @@ async function cariKarakteristik(server) {
       for (const c of chars) {
         if (c.properties.write || c.properties.writeWithoutResponse) return c;
       }
-    } catch (e) { /* layanan ini tidak ada di printer, coba yang lain */ }
+    } catch (e) {}
   }
   return null;
 }
 
 async function sambungkan() {
   let device = null, server = null;
-
-  // 1) Coba printer yang pernah diizinkan sebelumnya (tanpa daftar pilihan)
   if (navigator.bluetooth.getDevices) {
     try {
       let idTersimpan = null;
@@ -147,7 +158,6 @@ async function sambungkan() {
     } catch (e) { device = null; server = null; }
   }
 
-  // 2) Kalau belum ada, tampilkan daftar perangkat untuk dipilih
   if (!server) {
     device = await navigator.bluetooth.requestDevice({
       acceptAllDevices: true,
@@ -166,19 +176,19 @@ async function cetak() {
   let device = null;
   try {
     if (!navigator.bluetooth) {
-      setStatus("❌ Browser ini tidak mendukung Web Bluetooth. Gunakan Chrome di Android.");
+      setStatus("❌ HP/Browser tidak mendukung Bluetooth. Gunakan Chrome.");
       return;
     }
     setStatus("Menghubungkan ke printer...");
     const hasil = await sambungkan();
     device = hasil.device;
     if (!hasil.ch) {
-      setStatus("❌ Terhubung ke " + (device.name || "printer") + ", tapi jalur cetaknya tidak dikenali. Kirim ke Claude: nama printer dan UUID layanan (dari nRF Connect).");
+      setStatus("❌ Printer terhubung, tapi jalur cetak tidak dikenali.");
       try { device.gatt.disconnect(); } catch (e) {}
       return;
     }
     const ch = hasil.ch;
-    setStatus("Mencetak ke " + (device.name || "printer") + "...");
+    setStatus("Sedang mencetak...");
     const data = bytesDariB64(DATA_B64);
     for (let i = 0; i < data.length; i += CHUNK) {
       const potong = data.slice(i, i + CHUNK);
@@ -190,14 +200,10 @@ async function cetak() {
       }
       await sleep(DELAY);
     }
-    setStatus("✅ Selesai dicetak");
+    setStatus("✅ Berhasil dicetak!");
     setTimeout(() => { try { device.gatt.disconnect(); } catch (e) {} }, 1500);
   } catch (e) {
-    if (e && e.name === "NotFoundError") {
-      setStatus("Pemilihan printer dibatalkan, atau printer tidak ditemukan. Pastikan printer menyala dan tidak sedang tersambung ke aplikasi lain.");
-    } else {
-      setStatus("❌ Gagal: " + (e && e.name ? e.name + ": " : "") + (e && e.message ? e.message : e));
-    }
+    setStatus("❌ Gagal mencetak. Pastikan printer menyala.");
     try { if (device) device.gatt.disconnect(); } catch (x) {}
   } finally {
     btn.disabled = false;
@@ -211,7 +217,7 @@ df_produk, data_dari_sheet = muat_produk()
 df_produk = df_produk.copy()
 
 if not data_dari_sheet:
-    st.error("⚠️ Gagal mengambil data dari Google Sheets. Sekarang memakai data contoh.")
+    st.error("⚠️ Gagal mengambil data dari internet. Memakai data cadangan sementara.")
 
 kolom_nama_opsi = ["Nama Barang", "nama barang", "Nama", "nama", "Produk", "produk"]
 kolom_nama_barang = next((c for c in kolom_nama_opsi if c in df_produk.columns), df_produk.columns[0])
@@ -227,18 +233,18 @@ defaults = {
     "keranjang": [],
     "scan_trigger": "",
     "scan_counter": 0,
-    "scan_counter_db": 0,  # counter scanner di tab Daftar Harga
-    "scan_counter_tambah": 0,  # counter scanner di tab Tambah Barang
+    "scan_counter_db": 0,
+    "scan_counter_tambah": 0,
     "tambah_barcode": "",
     "tambah_nama": "",
-    "tambah_riwayat": [],  # barang yang ditambahkan selama sesi ini
+    "tambah_riwayat": [],
     "pesan_tambah": None,
     "last_scan": "",
-    "editor_counter": 0,  # untuk reset tabel keranjang setelah diedit
-    "riwayat": [],        # riwayat keranjang untuk fitur batalkan
+    "editor_counter": 0,
+    "riwayat": [],
     "konfirmasi_kosong": False,
-    "pilihan": [],      # hasil pencarian yang punya lebih dari 1 produk
-    "pesan": None,      # (tipe, teks)
+    "pilihan": [],
+    "pesan": None,
 }
 for k, v in defaults.items():
     if k not in st.session_state:
@@ -246,9 +252,8 @@ for k, v in defaults.items():
 
 
 def simpan_riwayat():
-    """Simpan kondisi keranjang sekarang, supaya bisa dibatalkan."""
     st.session_state.riwayat.append(copy.deepcopy(st.session_state.keranjang))
-    st.session_state.riwayat = st.session_state.riwayat[-20:]  # simpan maksimal 20 langkah
+    st.session_state.riwayat = st.session_state.riwayat[-20:]
 
 
 def tambah_ke_keranjang(nama, harga):
@@ -269,17 +274,15 @@ def tambah_ke_keranjang(nama, harga):
 def pilih_produk(nama, harga):
     tambah_ke_keranjang(nama, harga)
     st.session_state.pilihan = []
-    st.session_state.pesan = ("success", f"✅ Berhasil masuk keranjang: **{nama}** (Rp {rp(harga)})")
+    st.session_state.pesan = ("success", f"✅ Masuk Keranjang: **{nama}** (Rp {rp(harga)})")
 
 
 def submit_teks():
-    """Dipanggil saat Enter ditekan di kolom pencarian."""
     st.session_state.scan_trigger = st.session_state.input_text_kasir.strip()
     st.session_state.input_text_kasir = ""
 
 
 def terapkan_edit_qty():
-    """Dipanggil saat Qty di tabel keranjang diubah. Qty 0 = hapus barang."""
     key = f"editor_keranjang_{st.session_state.editor_counter}"
     edits = st.session_state.get(key, {}).get("edited_rows", {})
     simpan_riwayat()
@@ -289,7 +292,7 @@ def terapkan_edit_qty():
         try:
             qty = int(qty)
         except (TypeError, ValueError):
-            qty = item["Qty"]  # kalau kolom dikosongkan, pakai nilai lama
+            qty = item["Qty"]
         if qty > 0:
             item["Qty"] = qty
             item["Subtotal"] = qty * item["Harga Satuan"]
@@ -299,16 +302,14 @@ def terapkan_edit_qty():
 
 
 def batalkan_terakhir():
-    """Kembalikan keranjang ke kondisi sebelum input terakhir."""
     if st.session_state.riwayat:
         st.session_state.keranjang = st.session_state.riwayat.pop()
         st.session_state.editor_counter += 1
         st.session_state.pilihan = []
-        st.session_state.pesan = ("info", "↩️ Input terakhir dibatalkan.")
+        st.session_state.pesan = ("info", "↩️ Perubahan terakhir dibatalkan.")
 
 
 def hapus_barang(key_pilihan):
-    """Hapus satu barang tertentu dari keranjang."""
     i = st.session_state.get(key_pilihan)
     if i is not None and 0 <= i < len(st.session_state.keranjang):
         simpan_riwayat()
@@ -331,12 +332,9 @@ def kosongkan_keranjang():
     simpan_riwayat()
     st.session_state.keranjang = []
     st.session_state.pilihan = []
-    st.session_state.pesan = ("info", "🗑️ Keranjang dikosongkan. Klik 'Batalkan Input Terakhir' untuk mengembalikan.")
+    st.session_state.pesan = ("info", "🗑️ Keranjang dikosongkan.")
     st.session_state.last_scan = ""
     st.session_state.konfirmasi_kosong = False
-    st.session_state.diskon_input = 0
-    st.session_state.ongkir_input = 0
-    st.session_state.arisan_input = 0
     st.session_state.editor_counter += 1
 
 
@@ -345,7 +343,6 @@ def hapus_pencarian_db():
 
 
 def ambil_secret(nama):
-    """Baca pengaturan rahasia dari Streamlit Secrets (kosong kalau belum diisi)."""
     try:
         return str(st.secrets[nama]).strip()
     except Exception:
@@ -353,108 +350,73 @@ def ambil_secret(nama):
 
 
 def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
-    """Kirim satu barang baru ke Google Sheets lewat Apps Script."""
     barcode = st.session_state.tambah_barcode.strip()
     nama = st.session_state.tambah_nama.strip()
     url = ambil_secret("SHEET_WEBHOOK_URL")
     token = ambil_secret("SHEET_TOKEN")
 
     if not barcode:
-        st.session_state.pesan_tambah = ("warning", "⚠️ Barcode masih kosong. Scan atau ketik dulu.")
+        st.session_state.pesan_tambah = ("warning", "⚠️ Barcode belum diisi atau disedot.")
         return
     if not url or not token:
-        st.session_state.pesan_tambah = (
-            "error",
-            "⚠️ Koneksi ke spreadsheet belum diatur (SHEET_WEBHOOK_URL dan SHEET_TOKEN belum ada di Secrets).",
-        )
+        st.session_state.pesan_tambah = ("error", "⚠️ Sambungan ke sistem pusat belum diatur.")
         return
 
     values = {kol_barcode: barcode, kol_nama: nama}
     for c in kol_harga_list:
         v = int(st.session_state.get(f"tambah_{c}", 0) or 0)
-        values[c] = v if v > 0 else ""  # harga 0 dibiarkan kosong, diisi nanti
+        values[c] = v if v > 0 else ""
 
     payload = {"token": token, "kolom_barcode": kol_barcode, "values": values}
     try:
-        r = requests.post(
-            url,
-            data=json.dumps(payload),
-            headers={"Content-Type": "text/plain"},
-            timeout=25,
-        )
+        r = requests.post(url, data=json.dumps(payload), headers={"Content-Type": "text/plain"}, timeout=25)
     except Exception as e:
-        st.session_state.pesan_tambah = (
-            "error",
-            f"⚠️ Tidak bisa terhubung ke alamat Apps Script. Cek alamatnya di Secrets. ({e})",
-        )
+        st.session_state.pesan_tambah = ("error", f"⚠️ Gagal menyambung ke internet: {e}")
         return
 
     try:
         hasil = r.json()
     except Exception:
-        # Tampilkan cuplikan jawaban supaya penyebabnya kelihatan
-        cuplikan = re.sub(r"(?is)<(script|style).*?</\1>", " ", r.text)  # buang kode script/style
-        cuplikan = re.sub(r"<[^>]+>", " ", cuplikan)
-        cuplikan = re.sub(r"\s+", " ", cuplikan).strip()[:300]
-        akhir = r.url.split("?")[0][:100]
-        st.session_state.pesan_tambah = (
-            "error",
-            f"⚠️ Jawaban dari Apps Script bukan data yang dimengerti. "
-            f"Kode HTTP: {r.status_code}. Berakhir di: {akhir}. Isi jawaban: {cuplikan or '(kosong)'}",
-        )
+        st.session_state.pesan_tambah = ("error", "⚠️ Ada kesalahan data dari pusat.")
         return
 
     if hasil.get("ok"):
-        st.session_state.tambah_riwayat.append(
-            (datetime.now().strftime("%H:%M:%S"), barcode, nama or "(belum ada nama)")
-        )
-        st.session_state.pesan_tambah = (
-            "success",
-            f"✅ Tersimpan di baris {hasil.get('baris')} spreadsheet: {barcode}",
-        )
+        st.session_state.tambah_riwayat.append((datetime.now().strftime("%H:%M:%S"), barcode, nama or "(Tanpa Nama)"))
+        st.session_state.pesan_tambah = ("success", f"✅ Berhasil menyimpan barang baru!")
         st.session_state.tambah_barcode = ""
         st.session_state.tambah_nama = ""
         for c in kol_harga_list:
             st.session_state[f"tambah_{c}"] = 0
     else:
-        st.session_state.pesan_tambah = ("error", f"⚠️ Ditolak spreadsheet: {hasil.get('error', 'tidak diketahui')}")
+        st.session_state.pesan_tambah = ("error", f"⚠️ Ditolak: {hasil.get('error', 'kesalahan')}")
 
 
-tab1, tab2, tab3 = st.tabs(["🛒 Kasir", "📋 Database Harga", "➕ Tambah Barang"])
+# --- TAMPILAN UTAMA BERUPA MENU UTAMA YANG BESAR ---
+tab1, tab2, tab3 = st.tabs(["🛒 KASIR UTAMA", "📋 CARI HARGA", "➕ TAMBAH BARANG"])
 
 # ================= TAB 2 =================
 with tab2:
-    st.subheader("Daftar Barang & Harga")
+    st.subheader("📋 Daftar Barang dan Cek Harga")
+    st.info("💡 Gunakan halaman ini untuk mencari tahu harga barang dengan cepat.")
 
-    # Scanner harus dirender SEBELUM kolom pencarian, supaya hasil scan
-    # bisa langsung diisikan ke kolom pencarian.
-    buka_kamera_db = st.checkbox("📷 Buka Scanner", value=False, key="toggle_kamera_db")
+    buka_kamera_db = st.checkbox("📷 Nyalakan Kamera untuk Scan Barcode", value=False, key="toggle_kamera_db")
     if buka_kamera_db:
-        st.caption("Gunakan salah satu kamera saja. Matikan scanner di tab Kasir kalau sedang aktif.")
         hasil_scan_db = qrcode_scanner(key=f"scanner_db_{st.session_state.scan_counter_db}")
         if hasil_scan_db:
             st.session_state.search_db = str(hasil_scan_db).strip()
             st.session_state.scan_counter_db += 1
             st.rerun()
 
-    search_database = st.text_input(
-        "🔍 Cari produk :",
-        placeholder="Ketik nama barang atau barcode...",
-        key="search_db",
-    )
+    search_database = st.text_input("🔍 Ketik Nama Barang atau Barcode:", placeholder="Contoh: Gula atau Beras", key="search_db")
     df_tampil = df_produk.drop(columns="_kode", errors="ignore")
     if search_database:
         kata = search_database.strip()
-        mask = df_tampil.astype(str).apply(
-            lambda x: x.str.contains(kata, case=False, na=False, regex=False)
-        ).any(axis=1)
-        # cocokkan juga barcode dengan format yang sudah disamakan (abaikan 0 di depan)
+        mask = df_tampil.astype(str).apply(lambda x: x.str.contains(kata, case=False, na=False, regex=False)).any(axis=1)
         if "_kode" in df_produk.columns:
             mask = mask | (df_produk["_kode"] == norm_kode(kata))
         df_tampil = df_tampil[mask]
-        st.caption(f"Menampilkan {len(df_tampil)} produk untuk pencarian: `{kata}`")
-        st.button("✖️ Hapus pencarian", on_click=hapus_pencarian_db)
-    # Tampilkan kolom harga dengan titik ribuan (15000 -> 15.000)
+        st.button("✖️ Bersihkan Pencarian", on_click=hapus_pencarian_db)
+
     df_tampil = df_tampil.copy()
     for c in df_tampil.columns:
         if c.lower().startswith("harga"):
@@ -463,95 +425,68 @@ with tab2:
 
 # ================= TAB 3 =================
 with tab3:
-    st.subheader("Tambah Barang Baru ke Spreadsheet")
+    st.subheader("➕ Tambah Barang Baru")
     kolom_harga_list = [c for c in df_produk.columns if c.lower().startswith("harga")]
 
     if not kolom_barcode:
-        st.error("Kolom Barcode tidak ditemukan di spreadsheet. Pastikan ada kolom bernama 'Barcode'.")
+        st.error("Kolom Barcode tidak ditemukan.")
     else:
-        if not (ambil_secret("SHEET_WEBHOOK_URL") and ambil_secret("SHEET_TOKEN")):
-            st.info("Fitur ini belum aktif. Isi SHEET_WEBHOOK_URL dan SHEET_TOKEN di Secrets aplikasi terlebih dahulu.")
-
-        # Scanner dirender SEBELUM kolom barcode supaya hasilnya bisa langsung terisi
-        buka_kamera_tambah = st.checkbox("📷 Buka Scanner", value=False, key="toggle_kamera_tambah")
+        buka_kamera_tambah = st.checkbox("📷 Nyalakan Kamera untuk Scan Barcode Baru", value=False, key="toggle_kamera_tambah")
         if buka_kamera_tambah:
-            st.caption("Gunakan satu kamera saja. Matikan scanner di tab lain kalau sedang aktif.")
             hasil_scan_tambah = qrcode_scanner(key=f"scanner_tambah_{st.session_state.scan_counter_tambah}")
             if hasil_scan_tambah:
                 st.session_state.tambah_barcode = str(hasil_scan_tambah).strip()
                 st.session_state.scan_counter_tambah += 1
                 st.rerun()
 
-        st.text_input("Barcode", key="tambah_barcode", placeholder="Scan atau ketik barcode...")
-
-        # Peringatan kalau barcode sudah ada (boleh tetap disimpan, mis. untuk satuan berbeda)
-        kode_tambah = norm_kode(st.session_state.tambah_barcode)
-        if kode_tambah and "_kode" in df_produk.columns:
-            sudah_ada = df_produk[df_produk["_kode"] == kode_tambah]
-            if len(sudah_ada) > 0:
-                nama_ada = ", ".join(sudah_ada[kolom_nama_barang].astype(str).tolist())
-                st.warning(f"⚠️ Barcode ini sudah ada di database: {nama_ada}. Kalau ini satuan lain (misalnya renteng), silakan tetap simpan dengan nama yang berbeda.")
-
-        st.text_input(
-            "Nama Barang (boleh dikosongkan, bisa diisi nanti di laptop)",
-            key="tambah_nama",
-        )
+        st.text_input("Barcode Barang", key="tambah_barcode", placeholder="Scan atau ketik nomor barcode...")
+        st.text_input("Nama Barang", key="tambah_nama", placeholder="Ketik nama barang...")
 
         if kolom_harga_list:
-            st.caption("Harga (boleh dikosongkan / 0, bisa diisi nanti di laptop)")
+            st.markdown("### Atur Harga")
             kolom_ui = st.columns(len(kolom_harga_list))
             for kol, c in zip(kolom_ui, kolom_harga_list):
                 with kol:
                     st.number_input(c, min_value=0, value=0, step=500, key=f"tambah_{c}")
 
-        st.button(
-            "💾 Simpan ke Spreadsheet",
-            type="primary",
-            on_click=simpan_barang,
-            args=(kolom_barcode, kolom_nama_barang, kolom_harga_list),
-        )
+        st.markdown("")
+        st.button("💾 Simpan Barang Ini", type="primary", on_click=simpan_barang, args=(kolom_barcode, kolom_nama_barang, kolom_harga_list), use_container_width=True)
 
         if st.session_state.pesan_tambah:
             tipe_t, teks_t = st.session_state.pesan_tambah
             getattr(st, tipe_t)(teks_t)
 
-        if st.session_state.tambah_riwayat:
-            st.markdown("**Ditambahkan pada sesi ini:**")
-            st.dataframe(
-                pd.DataFrame(st.session_state.tambah_riwayat, columns=["Jam", "Barcode", "Nama"]),
-                use_container_width=True,
-                hide_index=True,
-            )
-            st.caption("Data baru muncul di aplikasi kasir sekitar 5 menit setelah tersimpan.")
-
 # ================= TAB 1 =================
 with tab1:
+    st.markdown("### 🏷️ 1. Pilih Jenis Pembeli")
     jenis_pelanggan = st.selectbox(
-        "🏷️ Pilih Jenis Pelanggan :",
+        "Pilih kategori pembeli di bawah:",
         ["Umum", "Bakul", "Umum Antar", "Usaha"],
         key="pilih_level_harga",
+        label_visibility="collapsed"
     )
 
     kolom_harga_pilihan = f"Harga {jenis_pelanggan}"
     if kolom_harga_pilihan not in df_produk.columns:
         kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
 
+    st.markdown("---")
+    st.markdown("### 🔍 2. Masukkan Barang (Ketik atau Scan)")
+    
     kamera_aktif = st.session_state.get("toggle_kamera_box", False)
     expander_terbuka = len(st.session_state.keranjang) == 0 or kamera_aktif
 
-    with st.expander("🔍 Klik untuk Input", expanded=expander_terbuka):
+    with st.expander("👉 KLIK DI SINI UNTUK KETIK / SCAN BARANG", expanded=expander_terbuka):
         st.text_input(
-            "Ketik nama barang / barcode lalu Enter:",
-            placeholder="Contoh: Beras atau 899111",
+            "Ketik nama barang atau barcode, lalu tekan ENTER:",
+            placeholder="Contoh: Beras atau Minyak",
             key="input_text_kasir",
             on_change=submit_teks,
         )
 
-        buka_kamera = st.checkbox("📷 Buka Scanner", value=False, key="toggle_kamera_box")
+        buka_kamera = st.checkbox("📷 Buka Kamera Scanner Barcode", value=False, key="toggle_kamera_box")
 
         if buka_kamera:
-            # key berubah tiap scan sukses -> scanner di-reset,
-            # jadi barcode yang sama bisa discan berulang kali
             hasil_scan = qrcode_scanner(key=f"scanner_{st.session_state.scan_counter}")
             if hasil_scan:
                 st.session_state.scan_trigger = str(hasil_scan).strip()
@@ -577,51 +512,55 @@ with tab1:
             ]
 
         if len(df_match) == 0:
-            st.session_state.pesan = ("warning", f"⚠️ Produk '{keyword_aktif}' tidak ditemukan.")
+            st.session_state.pesan = ("warning", f"⚠️ Maaf, barang '{keyword_aktif}' tidak ditemukan.")
         else:
             daftar = []
             for _, row in df_match.iterrows():
                 harga = int(row[kolom_harga_pilihan])
-                daftar.append((str(row[kolom_nama_barang]).strip() or "(Barang tanpa nama)", harga))
+                daftar.append((str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)", harga))
 
             if len(daftar) == 1:
                 pilih_produk(*daftar[0])
             else:
                 st.session_state.pilihan = daftar
-                st.session_state.pesan = ("info", f"Pilih yang mana nih '{keyword_aktif}':")
+                st.session_state.pesan = ("info", f"Ditemukan beberapa barang untuk '{keyword_aktif}', silakan pilih salah satu:")
 
-    # --- TAMPILKAN PESAN & PILIHAN ---
     if st.session_state.pesan:
         tipe, teks = st.session_state.pesan
         getattr(st, tipe)(teks)
 
     for i, (nm, hg) in enumerate(st.session_state.pilihan):
         st.button(
-            f"➕ Tambah: {nm} - Rp {rp(hg)}",
+            f"👉 Pilih: {nm} - Rp {rp(hg)}",
             key=f"pilih_{i}",
             on_click=pilih_produk,
             args=(nm, hg),
+            use_container_width=True
         )
 
     if st.session_state.riwayat:
+        st.markdown("")
         st.button(
-            "↩️ Batalkan Input Terakhir",
+            "↩️ BATALKAN PERUBAHAN TERAKHIR",
             on_click=batalkan_terakhir,
-            help="Mengembalikan keranjang ke kondisi sebelum input terakhir (tambah barang, ubah Qty, hapus, atau kosongkan).",
+            use_container_width=True
         )
 
-    st.divider()
+    st.markdown("---")
 
     # ================= KERANJANG & NOTA =================
     if len(st.session_state.keranjang) > 0:
-        st.subheader("🛒 Keranjang Belanja")
+        st.subheader("🛒 3. Daftar Belanjaan (Keranjang)")
+        st.info("💡 Anda bisa mengubah jumlah (Qty) langsung di tabel bawah ini. Ketik angka 0 jika ingin menghapus barang.")
+        
         df_keranjang = pd.DataFrame(st.session_state.keranjang)
-        df_keranjang.index = range(1, len(df_keranjang) + 1)  # nomor urut mulai dari 1
+        df_keranjang.index = range(1, len(df_keranjang) + 1)
         df_keranjang.index.name = "No"
-        # Salinan khusus tampilan: harga dengan titik ribuan (data asli tetap angka)
+        
         df_tampil_keranjang = df_keranjang.copy()
         df_tampil_keranjang["Harga Satuan"] = df_tampil_keranjang["Harga Satuan"].map(rp)
         df_tampil_keranjang["Subtotal"] = df_tampil_keranjang["Subtotal"].map(rp)
+        
         st.data_editor(
             df_tampil_keranjang,
             key=f"editor_keranjang_{st.session_state.editor_counter}",
@@ -629,8 +568,8 @@ with tab1:
             disabled=["Nama Barang", "Harga Satuan", "Subtotal"],
             column_config={
                 "Qty": st.column_config.NumberColumn(
-                    "Qty", min_value=0, step=1, format="%d",
-                    help="Klik lalu ketik jumlah. Isi 0 untuk menghapus barang.",
+                    "Jumlah", min_value=0, step=1, format="%d",
+                    help="Ubah jumlah barang",
                 ),
                 "Harga Satuan": st.column_config.TextColumn("Harga Satuan"),
                 "Subtotal": st.column_config.TextColumn("Subtotal"),
@@ -640,70 +579,62 @@ with tab1:
 
         subtotal_barang = int(df_keranjang["Subtotal"].sum())
 
+        st.markdown("### 💰 Rincian Biaya Tambahan")
         col_dk1, col_dk2, col_dk3 = st.columns(3)
         with col_dk1:
-            diskon_input = st.number_input(
-                "Diskon (Rp)", min_value=0, value=0, step=500, key="diskon_input",
-                help="Kosongkan / isi 0 kalau tidak ada diskon. Tidak akan dicetak di nota jika 0.",
-            )
+            diskon_input = st.number_input("Diskon (Rp)", min_value=0, value=0, step=500, key="diskon_input")
         with col_dk2:
-            ongkir = int(st.number_input(
-                "Ongkir (Rp)", min_value=0, value=0, step=500, key="ongkir_input",
-                help="Kosongkan / isi 0 kalau tidak ada ongkir. Tidak akan dicetak di nota jika 0.",
-            ))
+            ongkir = int(st.number_input("Ongkir (Rp)", min_value=0, value=0, step=500, key="ongkir_input"))
         with col_dk3:
-            arisan = int(st.number_input(
-                "Arisan (Rp)", min_value=0, value=0, step=1000, key="arisan_input",
-                help="Isi nominal arisan secara manual. Kosongkan / isi 0 kalau tidak ada. Tidak akan dicetak di nota jika 0.",
-            ))
+            arisan = int(st.number_input("Arisan (Rp)", min_value=0, value=0, step=1000, key="arisan_input"))
 
         diskon = min(int(diskon_input), subtotal_barang)
-        if int(diskon_input) > subtotal_barang:
-            st.warning("⚠️ Diskon melebihi total belanja, jadi dihitung maksimal sebesar total belanja.")
-
         total_belanja_semua = subtotal_barang - diskon + ongkir + arisan
-        st.metric(label="TOTAL", value=f"Rp {rp(total_belanja_semua)}")
+
+        st.markdown("")
+        st.markdown(f"## 💵 **TOTAL BAYAR: Rp {rp(total_belanja_semua)}**")
 
         col_aksi1, col_aksi2 = st.columns(2)
         with col_aksi1:
             nama_pembeli = st.text_input("Nama Pelanggan", value="Pelanggan Umum", key="nama_pelanggan_input")
         with col_aksi2:
             uang_tunai = st.number_input(
-                "Bayar (Rp)", min_value=0, value=total_belanja_semua, step=5000, key=f"uang_tunai_{total_belanja_semua}"
+                "Uang Diterima dari Pembeli (Rp)", min_value=0, value=total_belanja_semua, step=5000, key=f"uang_tunai_{total_belanja_semua}"
             )
 
-        # --- BATALKAN / HAPUS BARANG ---
+        uang_kembalian = uang_tunai - total_belanja_semua
+        if uang_kembalian >= 0:
+            st.success(f"### Kembalian: Rp {rp(uang_kembalian)}")
+        else:
+            st.error(f"### Uang Kurang: Rp {rp(abs(uang_kembalian))}")
+
+        st.markdown("---")
+        st.markdown("### 🗑️ Hapus Barang / Kosongkan Keranjang")
         key_hapus = f"pilih_hapus_{st.session_state.editor_counter}"
         col_h1, col_h2 = st.columns([3, 2])
         with col_h1:
             st.selectbox(
-                "❌ Pilih barang yang dibatalkan:",
+                "Pilih barang yang ingin dibuang:",
                 options=list(range(len(st.session_state.keranjang))),
                 format_func=lambda i: f"{i + 1}. {st.session_state.keranjang[i]['Nama Barang']} (x{st.session_state.keranjang[i]['Qty']})",
                 key=key_hapus,
+                label_visibility="collapsed"
             )
         with col_h2:
-            st.write("")
-            st.button(
-                "❌ Hapus Barang",
-                on_click=hapus_barang,
-                args=(key_hapus,),
-                use_container_width=True,
-            )
+            st.button("❌ Hapus Barang Ini", on_click=hapus_barang, args=(key_hapus,), use_container_width=True)
 
         if not st.session_state.konfirmasi_kosong:
-            st.button("🗑️ Kosongkan Semua Keranjang", type="secondary", on_click=minta_konfirmasi_kosong)
+            st.button("🗑️ Kosongkan Seluruh Keranjang", type="secondary", on_click=minta_konfirmasi_kosong, use_container_width=True)
         else:
-            st.warning("Yakin ingin mengosongkan SEMUA barang di keranjang?")
+            st.warning("⚠️ Yakin ingin menghapus SEMUA belanjaan di keranjang?")
             col_k1, col_k2 = st.columns(2)
             with col_k1:
                 st.button("Ya, Kosongkan", type="primary", on_click=kosongkan_keranjang, use_container_width=True)
             with col_k2:
                 st.button("Batal", on_click=batal_kosongkan, use_container_width=True)
 
-        uang_kembalian = uang_tunai - total_belanja_semua
-
-        st.divider()
+        st.markdown("---")
+        st.markdown("### 🖨️ 4. Cetak Struk / Kirim Nota")
 
         waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         printer_width = 32
@@ -716,7 +647,6 @@ with tab1:
         tunai_str = rp(uang_tunai)
         kembalian_str = rp(uang_kembalian)
 
-        # Rincian (Subtotal/Diskon/Ongkir) hanya muncul kalau ada diskon atau ongkir
         rincian = []
         if diskon > 0 or ongkir > 0 or arisan > 0:
             rincian.append(("Subtotal", rp(subtotal_barang)))
@@ -727,8 +657,6 @@ with tab1:
             if arisan > 0:
                 rincian.append(("Arisan", rp(arisan)))
 
-
-        # --- ESC/POS ---
         INIT = b'\x1b\x40'
         ALIGN_CENTER = b'\x1b\x61\x01'
         ALIGN_LEFT = b'\x1b\x61\x00'
@@ -771,12 +699,11 @@ with tab1:
         raw_bytes.extend(BOLD_ON)
         raw_bytes.extend(b"Terima Kasih & Semoga Berkah\n")
         raw_bytes.extend(BOLD_OFF)
-        raw_bytes.extend(b"\n\n\n")  # beri jarak kertas sebelum dipotong/disobek
+        raw_bytes.extend(b"\n\n\n")
         raw_bytes.extend(CUT_PAPER)
 
         nama_file_bin = f"nota_{datetime.now().strftime('%d%m%y_%H%M%S')}.bin"
 
-        # --- WHATSAPP ---
         pesan_wa = (
             "*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n"
             "----------------------------------\n"
@@ -818,10 +745,10 @@ with tab1:
         with col_btn2:
             st.markdown(f"""
 <div style="text-align: center;">
-    <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 10px 20px; text-decoration: none; font-size: 15px; border-radius: 4px; font-weight: bold; display: block; margin-top: 2px;">
+    <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 12px 20px; text-decoration: none; font-size: 18px; border-radius: 10px; font-weight: bold; display: block; margin-top: 2px;">
         💬 Kirim via WhatsApp
     </a>
 </div>
 """, unsafe_allow_html=True)
     else:
-        st.info("Keranjang masih kosong. Silakan ketik nama barang atau centang kamera untuk scan barcode.")
+        st.info("🛒 Keranjang belanja masih kosong. Silakan ketik nama barang di atas atau nyalakan kamera untuk mulai scan.")
