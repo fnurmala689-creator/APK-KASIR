@@ -44,7 +44,7 @@ st.markdown(
         animation: floatBubble 4s ease-in-out infinite;
         transition: all 0.3s ease !important;
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-        color: #2d3436 !important; /* Warna teks gelap agar kontras & jelas */
+        color: #2d3436 !important;
     }
 
     /* Warna Bubble 1: Pink Peach (Kasir) */
@@ -315,6 +315,18 @@ def pilih_produk(nama, harga):
 def submit_teks():
     st.session_state.scan_trigger = st.session_state.input_text_kasir.strip()
     st.session_state.input_text_kasir = ""
+
+
+def ubah_qty_langsung(index_item, delta):
+    simpan_riwayat()
+    if 0 <= index_item < len(st.session_state.keranjang):
+        item = st.session_state.keranjang[index_item]
+        item["Qty"] += delta
+        if item["Qty"] <= 0:
+            st.session_state.keranjang.pop(index_item)
+        else:
+            item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
+        st.session_state.editor_counter += 1
 
 
 def terapkan_edit_qty():
@@ -631,37 +643,29 @@ else:
         # ================= KERANJANG & NOTA =================
         if len(st.session_state.keranjang) > 0:
             st.subheader("🛒 3. Daftar Belanjaan (Keranjang)")
-            st.info("💡 Ubah jumlah (Qty) atau centang kolom **Hapus** di sebelah kanan subtotal untuk membuang barang.")
+            st.info("💡 Gunakan tombol **-** dan **+** di bawah untuk mengurangi atau menambah jumlah barang dengan cepat.")
             
-            df_keranjang = pd.DataFrame(st.session_state.keranjang)
-            df_keranjang.index = range(1, len(df_keranjang) + 1)
-            df_keranjang.index.name = "No"
-            
-            df_tampil_keranjang = df_keranjang.copy()
-            df_tampil_keranjang["Harga Satuan"] = df_tampil_keranjang["Harga Satuan"].map(rp)
-            df_tampil_keranjang["Subtotal"] = df_tampil_keranjang["Subtotal"].map(rp)
-            
-            st.data_editor(
-                df_tampil_keranjang,
-                key=f"editor_keranjang_{st.session_state.editor_counter}",
-                on_change=terapkan_edit_qty,
-                disabled=["Nama Barang", "Harga Satuan", "Subtotal"],
-                column_config={
-                    "Qty": st.column_config.NumberColumn(
-                        "Jumlah", min_value=0, step=1, format="%d",
-                        help="Ubah jumlah barang",
-                    ),
-                    "Harga Satuan": st.column_config.TextColumn("Harga Satuan"),
-                    "Subtotal": st.column_config.TextColumn("Subtotal"),
-                    "Hapus": st.column_config.CheckboxColumn(
-                        "❌ Hapus",
-                        help="Centang untuk menghapus barang ini",
-                        default=False,
-                    ),
-                },
-                use_container_width=True,
-            )
+            # Tampilkan tombol tambah / kurang per baris di atas tabel
+            for idx, item in enumerate(st.session_state.keranjang):
+                cols = st.columns([3, 1, 1, 1, 1])
+                with cols[0]:
+                    st.markdown(f"**{idx + 1}. {item['Nama Barang']}**")
+                with cols[1]:
+                    st.markdown(f"Qty: **{item['Qty']}**")
+                with cols[2]:
+                    if st.button("➖", key=f"min_{idx}", use_container_width=True):
+                        ubah_qty_langsung(idx, -1)
+                        st.rerun()
+                with cols[3]:
+                    if st.button("➕", key=f"plus_{idx}", use_container_width=True):
+                        ubah_qty_langsung(idx, 1)
+                        st.rerun()
+                with cols[4]:
+                    st.markdown(f"Rp {rp(item['Subtotal'])}")
 
+            st.markdown("---")
+
+            df_keranjang = pd.DataFrame(st.session_state.keranjang)
             subtotal_barang = int(df_keranjang["Subtotal"].sum())
 
             st.markdown("### 💰 Rincian Biaya Tambahan")
