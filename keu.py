@@ -131,8 +131,8 @@ def rp(angka):
 # ============ CETAK BLUETOOTH (BLE) ============
 HTML_CETAK_BLE = """
 <div style="font-family: sans-serif;">
-  <button id="btn" style="width:100%; padding:12px; font-size:18px; font-weight:bold;
-          border-radius:10px; border:2px solid #28a745; background:#28a745; color:#ffffff; cursor:pointer;">
+  <button id="btn" style="width:100%; padding:14px; font-size:18px; font-weight:bold;
+          border-radius:12px; border:2px solid #28a745; background:#28a745; color:#ffffff; cursor:pointer;">
     🖨️ Cetak Struk via Bluetooth
   </button>
   <div id="status" style="font-size:14px; color:#333; margin-top:6px; min-height:20px; font-weight:bold;"></div>
@@ -302,6 +302,7 @@ def tambah_ke_keranjang(nama, harga):
         "Qty": 1,
         "Harga Satuan": harga,
         "Subtotal": harga,
+        "Hapus": False,
     })
 
 
@@ -320,19 +321,33 @@ def terapkan_edit_qty():
     key = f"editor_keranjang_{st.session_state.editor_counter}"
     edits = st.session_state.get(key, {}).get("edited_rows", {})
     simpan_riwayat()
+    
     baru = []
+    pesan_hapus = None
     for i, item in enumerate(st.session_state.keranjang):
-        qty = edits.get(i, {}).get("Qty", item["Qty"])
+        row_edit = edits.get(i, {})
+        qty = row_edit.get("Qty", item["Qty"])
+        hapus_centang = row_edit.get("Hapus", False)
+        
         try:
             qty = int(qty)
         except (TypeError, ValueError):
             qty = item["Qty"]
+            
+        if hapus_centang:
+            pesan_hapus = f"❌ {item['Nama Barang']} dihapus dari keranjang."
+            continue
+            
         if qty > 0:
             item["Qty"] = qty
             item["Subtotal"] = qty * item["Harga Satuan"]
+            item["Hapus"] = False
             baru.append(item)
+            
     st.session_state.keranjang = baru
     st.session_state.editor_counter += 1
+    if pesan_hapus:
+        st.session_state.pesan = ("info", pesan_hapus)
 
 
 def batalkan_terakhir():
@@ -341,17 +356,6 @@ def batalkan_terakhir():
         st.session_state.editor_counter += 1
         st.session_state.pilihan = []
         st.session_state.pesan = ("info", "↩️ Perubahan terakhir dibatalkan.")
-
-
-def hapus_barang(key_pilihan):
-    i = st.session_state.get(key_pilihan)
-    if i is not None and 0 <= i < len(st.session_state.keranjang):
-        simpan_riwayat()
-        nama = st.session_state.keranjang[i]["Nama Barang"]
-        del st.session_state.keranjang[i]
-        st.session_state.editor_counter += 1
-        st.session_state.pilihan = []
-        st.session_state.pesan = ("info", f"❌ {nama} dihapus dari keranjang.")
 
 
 def minta_konfirmasi_kosong():
@@ -627,7 +631,7 @@ else:
         # ================= KERANJANG & NOTA =================
         if len(st.session_state.keranjang) > 0:
             st.subheader("🛒 3. Daftar Belanjaan (Keranjang)")
-            st.info("💡 Anda bisa mengubah jumlah (Qty) langsung di tabel bawah ini. Ketik angka 0 jika ingin menghapus barang.")
+            st.info("💡 Ubah jumlah (Qty) atau centang kolom **Hapus** di sebelah kanan subtotal untuk membuang barang.")
             
             df_keranjang = pd.DataFrame(st.session_state.keranjang)
             df_keranjang.index = range(1, len(df_keranjang) + 1)
@@ -649,6 +653,11 @@ else:
                     ),
                     "Harga Satuan": st.column_config.TextColumn("Harga Satuan"),
                     "Subtotal": st.column_config.TextColumn("Subtotal"),
+                    "Hapus": st.column_config.CheckboxColumn(
+                        "❌ Hapus",
+                        help="Centang untuk menghapus barang ini",
+                        default=False,
+                    ),
                 },
                 use_container_width=True,
             )
@@ -685,20 +694,6 @@ else:
                 st.error(f"### Uang Kurang: Rp {rp(abs(uang_kembalian))}")
 
             st.markdown("---")
-            st.markdown("### 🗑️ Hapus Barang / Kosongkan Keranjang")
-            key_hapus = f"pilih_hapus_{st.session_state.editor_counter}"
-            col_h1, col_h2 = st.columns([3, 2])
-            with col_h1:
-                st.selectbox(
-                    "Pilih barang yang ingin dibuang:",
-                    options=list(range(len(st.session_state.keranjang))),
-                    format_func=lambda i: f"{i + 1}. {st.session_state.keranjang[i]['Nama Barang']} (x{st.session_state.keranjang[i]['Qty']})",
-                    key=key_hapus,
-                    label_visibility="collapsed"
-                )
-            with col_h2:
-                st.button("❌ Hapus Barang Ini", on_click=hapus_barang, args=(key_hapus,), use_container_width=True)
-
             if not st.session_state.konfirmasi_kosong:
                 st.button("🗑️ Kosongkan Seluruh Keranjang", type="secondary", on_click=minta_konfirmasi_kosong, use_container_width=True)
             else:
@@ -778,8 +773,6 @@ else:
             raw_bytes.extend(b"\n\n\n")
             raw_bytes.extend(CUT_PAPER)
 
-            nama_file_bin = f"nota_{datetime.now().strftime('%d%m%y_%H%M%S')}.bin"
-
             pesan_wa = (
                 "*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n"
                 "----------------------------------\n"
@@ -806,22 +799,14 @@ else:
             )
             whatsapp_url = f"https://api.whatsapp.com/send?text={urllib.parse.quote(pesan_wa)}"
 
-            col_ble, col_btn1, col_btn2 = st.columns(3)
+            col_ble, col_wa = st.columns(2)
             with col_ble:
                 data_b64 = base64.b64encode(bytes(raw_bytes)).decode()
                 components.html(HTML_CETAK_BLE.replace("__DATA__", data_b64), height=110)
-            with col_btn1:
-                st.download_button(
-                    label="📄 Cetak via RawBT",
-                    data=bytes(raw_bytes),
-                    file_name=nama_file_bin,
-                    mime="application/octet-stream",
-                    use_container_width=True,
-                )
-            with col_btn2:
+            with col_wa:
                 st.markdown(f"""
 <div style="text-align: center;">
-    <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 12px 20px; text-decoration: none; font-size: 18px; border-radius: 10px; font-weight: bold; display: block; margin-top: 2px;">
+    <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 14px 20px; text-decoration: none; font-size: 18px; border-radius: 12px; font-weight: bold; display: block; margin-top: 2px;">
         💬 Kirim via WhatsApp
     </a>
 </div>
