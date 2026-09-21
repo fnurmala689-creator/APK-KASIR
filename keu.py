@@ -312,6 +312,15 @@ def ubah_qty_langsung(index_item, delta):
         st.session_state.editor_counter += 1
 
 
+def hapus_item_satuan(index_item):
+    simpan_riwayat()
+    if 0 <= index_item < len(st.session_state.keranjang):
+        nama_dihapus = st.session_state.keranjang[index_item]["Nama Barang"]
+        st.session_state.keranjang.pop(index_item)
+        st.session_state.pesan = ("info", f"❌ {nama_dihapus} dihapus dari keranjang.")
+        st.session_state.editor_counter += 1
+
+
 def batalkan_terakhir():
     if st.session_state.riwayat:
         st.session_state.keranjang = st.session_state.riwayat.pop()
@@ -602,21 +611,23 @@ else:
         # ================= KERANJANG & NOTA =================
         if len(st.session_state.keranjang) > 0:
             st.subheader("🛒 3. Daftar Belanjaan (Keranjang)")
-            st.info("💡 Gunakan tombol **-** dan **+** di kolom jumlah untuk mengurangi atau menambah barang.")
+            st.info("💡 Gunakan tombol **-** dan **+** di kolom jumlah, atau tombol **🗑️** untuk menghapus barang.")
             
-            # Header kolom tabel keranjang
-            h_col1, h_col2, h_col3 = st.columns([4, 2, 2])
+            # Header kolom tabel keranjang (Nama, Qty, Subtotal, Hapus)
+            h_col1, h_col2, h_col3, h_col4 = st.columns([3.5, 2, 2, 1])
             with h_col1:
                 st.markdown("**Nama Barang**")
             with h_col2:
                 st.markdown("**Jumlah (Qty)**")
             with h_col3:
                 st.markdown("**Subtotal**")
+            with h_col4:
+                st.markdown("**Aksi**")
             st.markdown("---")
 
-            # Baris item keranjang dengan tombol - dan + di kolom jumlah
+            # Baris item keranjang
             for idx, item in enumerate(st.session_state.keranjang):
-                row_c1, row_c2, row_c3 = st.columns([4, 2, 2])
+                row_c1, row_c2, row_c3, row_c4 = st.columns([3.5, 2, 2, 1])
                 with row_c1:
                     st.markdown(f"**{idx + 1}. {item['Nama Barang']}**<br><span style='color:gray; font-size:14px;'>@ Rp {rp(item['Harga Satuan'])}</span>", unsafe_allow_html=True)
                 with row_c2:
@@ -631,10 +642,12 @@ else:
                         if st.button("➕", key=f"plus_{idx}", use_container_width=True):
                             ubah_qty_langsung(idx, 1)
                             st.rerun()
-                with row_c2.empty(): # perata letak
-                    pass
                 with row_c3:
                     st.markdown(f"**Rp {rp(item['Subtotal'])}**")
+                with row_c4:
+                    if st.button("🗑️", key=f"del_{idx}", use_container_width=True):
+                        hapus_item_satuan(idx)
+                        st.rerun()
                 st.markdown("---")
 
             df_keranjang = pd.DataFrame(st.session_state.keranjang)
