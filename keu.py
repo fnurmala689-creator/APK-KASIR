@@ -273,7 +273,7 @@ def simpan_riwayat():
     st.session_state.riwayat = st.session_state.riwayat[-20:]
 
 
-def tambah_ke_keranjang(nama, harga):
+def tambah_ke_keranjang(barcode, nama, harga):
     simpan_riwayat()
     for item in st.session_state.keranjang:
         if item["Nama Barang"] == nama and item["Harga Satuan"] == harga:
@@ -281,16 +281,16 @@ def tambah_ke_keranjang(nama, harga):
             item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
             return
     st.session_state.keranjang.append({
+        "Barcode": barcode,
         "Nama Barang": nama,
         "Qty": 1,
         "Harga Satuan": harga,
         "Subtotal": harga,
-        "Hapus": False,
     })
 
 
-def pilih_produk(nama, harga):
-    tambah_ke_keranjang(nama, harga)
+def pilih_produk(barcode, nama, harga):
+    tambah_ke_keranjang(barcode, nama, harga)
     st.session_state.pilihan = []
     st.session_state.pesan = ("success", f"✅ Masuk Keranjang: **{nama}** (Rp {rp(harga)})")
 
@@ -531,28 +531,26 @@ else:
             kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
 
         st.markdown("---")
-        st.markdown("### 🔍 2. Masukkan Barang (Ketik atau Scan)")
         
-        kamera_aktif = st.session_state.get("toggle_kamera_box", False)
-        expander_terbuka = len(st.session_state.keranjang) == 0 or kamera_aktif
-
-        with st.expander("👉 KLIK DI SINI UNTUK KETIK / SCAN BARANG", expanded=expander_terbuka):
+        # --- INPUT CEPAT / SCANNER LANGSUNG (TANPA EXPANDER) ---
+        col_in1, col_in2 = st.columns([3, 1])
+        with col_in1:
             st.text_input(
-                "Ketik nama barang atau barcode, lalu tekan ENTER:",
-                placeholder="Contoh: Beras atau Minyak",
+                "🔍 Ketik Nama Barang / Barcode & Tekan Enter (atau Scan):",
+                placeholder="Ketik atau scan di sini...",
                 key="input_text_kasir",
                 on_change=submit_teks,
             )
+        with col_in2:
+            buka_kamera = st.checkbox("📷 Kamera Scan", value=False, key="toggle_kamera_box")
 
-            buka_kamera = st.checkbox("📷 Buka Kamera Scanner Barcode", value=False, key="toggle_kamera_box")
-
-            if buka_kamera:
-                hasil_scan = qrcode_scanner(key=f"scanner_{st.session_state.scan_counter}")
-                if hasil_scan:
-                    st.session_state.scan_trigger = str(hasil_scan).strip()
-                    st.session_state.last_scan = str(hasil_scan).strip()
-                    st.session_state.scan_counter += 1
-                    st.rerun()
+        if buka_kamera:
+            hasil_scan = qrcode_scanner(key=f"scanner_{st.session_state.scan_counter}")
+            if hasil_scan:
+                st.session_state.scan_trigger = str(hasil_scan).strip()
+                st.session_state.last_scan = str(hasil_scan).strip()
+                st.session_state.scan_counter += 1
+                st.rerun()
 
         # --- PEMROSESAN KEYWORD ---
         keyword_aktif = st.session_state.scan_trigger
@@ -577,7 +575,8 @@ else:
                 daftar = []
                 for _, row in df_match.iterrows():
                     harga = int(row[kolom_harga_pilihan])
-                    daftar.append((str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)", harga))
+                    bcode = str(row[kolom_barcode]).strip() if kolom_barcode else "-"
+                    daftar.append((bcode, str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)", harga))
 
                 if len(daftar) == 1:
                     pilih_produk(*daftar[0])
@@ -589,12 +588,12 @@ else:
             tipe, teks = st.session_state.pesan
             getattr(st, tipe)(teks)
 
-        for i, (nm, hg) in enumerate(st.session_state.pilihan):
+        for i, (bcode, nm, hg) in enumerate(st.session_state.pilihan):
             st.button(
-                f"👉 Pilih: {nm} - Rp {rp(hg)}",
+                f"👉 Pilih: [{bcode}] {nm} - Rp {rp(hg)}",
                 key=f"pilih_{i}",
                 on_click=pilih_produk,
-                args=(nm, hg),
+                args=(bcode, nm, hg),
                 use_container_width=True
             )
 
@@ -610,11 +609,13 @@ else:
 
         # ================= KERANJANG & NOTA =================
         if len(st.session_state.keranjang) > 0:
-            st.subheader("🛒 3. Daftar Belanjaan (Keranjang)")
-            st.info("💡 Gunakan tombol **-** dan **+** di kolom jumlah, atau tombol **🗑️** untuk menghapus barang.")
+            st.subheader("🛒 Daftar Belanjaan")
+            st.info("💡 Kolom **Barcode/Kode** kini ada di sebelah kiri sebelum nama barang.")
             
-            # Header kolom tabel keranjang (Nama, Qty, Subtotal, Hapus)
-            h_col1, h_col2, h_col3, h_col4 = st.columns([3.5, 2, 2, 1])
+            # Header kolom tabel keranjang (No/Barcode, Nama Barang, Qty, Subtotal, Aksi)
+            h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.5, 3, 2, 2, 1])
+            with h_col0:
+                st.markdown("**Barcode / Kode**")
             with h_col1:
                 st.markdown("**Nama Barang**")
             with h_col2:
@@ -627,7 +628,9 @@ else:
 
             # Baris item keranjang
             for idx, item in enumerate(st.session_state.keranjang):
-                row_c1, row_c2, row_c3, row_c4 = st.columns([3.5, 2, 2, 1])
+                row_c0, row_c1, row_c2, row_c3, row_c4 = st.columns([1.5, 3, 2, 2, 1])
+                with row_c0:
+                    st.markdown(f"<span style='color:gray; font-size:15px;'>{item.get('Barcode', '-')}</span>", unsafe_allow_html=True)
                 with row_c1:
                     st.markdown(f"**{idx + 1}. {item['Nama Barang']}**<br><span style='color:gray; font-size:14px;'>@ Rp {rp(item['Harga Satuan'])}</span>", unsafe_allow_html=True)
                 with row_c2:
@@ -694,7 +697,7 @@ else:
                     st.button("Batal", on_click=batal_kosongkan, use_container_width=True)
 
             st.markdown("---")
-            st.markdown("### 🖨️ 4. Cetak Struk / Kirim Nota")
+            st.markdown("### 🖨️ Cetak Struk / Kirim Nota")
 
             waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             printer_width = 32
@@ -801,4 +804,4 @@ else:
 </div>
 """, unsafe_allow_html=True)
         else:
-            st.info("🛒 Keranjang belanja masih kosong. Silakan ketik nama barang di atas atau nyalakan kamera untuk mulai scan.")
+            st.info("🛒 Keranjang belanja masih kosong. Silakan ketik nama barang atau scan di atas untuk mulai.")
