@@ -11,7 +11,7 @@ from streamlit_qrcode_scanner import qrcode_scanner
 
 st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🤞", layout="wide")
 
-# --- CSS: TAMPILAN MODERN & NAVIGASI IKON KECIL ---
+# --- CSS: TAMPILAN BUBBLE LUCU & ANIMASI GERAKAN ---
 st.markdown(
     """
     <style>
@@ -25,11 +25,54 @@ st.markdown(
     html, body, [class*="css"] {
         font-size: 18px !important;
     }
+    
+    /* Efek Animasi Melayang untuk Bubble */
+    @keyframes floatBubble {
+        0% { transform: translateY(0px) scale(1); }
+        50% { transform: translateY(-8px) scale(1.02); }
+        100% { transform: translateY(0px) scale(1); }
+    }
+
+    /* Styling Kotak/Tombol Menyerupai Bubble Lucu */
+    .bubble-card {
+        background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 99%, #fad0c4 100%);
+        border: 3px solid #ffffff;
+        padding: 25px 15px;
+        border-radius: 50px;
+        text-align: center;
+        box-shadow: 0 10px 25px rgba(255, 154, 158, 0.4);
+        margin: 10px;
+        animation: floatBubble 4s ease-in-out infinite;
+        transition: all 0.3s ease;
+    }
+    
+    .bubble-card:hover {
+        transform: scale(1.08);
+        box-shadow: 0 15px 30px rgba(255, 154, 158, 0.6);
+    }
+
+    .bubble-card.blue {
+        background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
+        box-shadow: 0 10px 25px rgba(161, 196, 253, 0.4);
+    }
+    .bubble-card.blue:hover {
+        box-shadow: 0 15px 30px rgba(161, 196, 253, 0.6);
+    }
+
+    .bubble-card.yellow {
+        background: linear-gradient(135deg, #fbc531 0%, #e1b12c 100%);
+        box-shadow: 0 10px 25px rgba(251, 197, 49, 0.4);
+    }
+    .bubble-card.yellow:hover {
+        box-shadow: 0 15px 30px rgba(251, 197, 49, 0.6);
+    }
+
+    /* Tombol Streamlit disesuaikan agar menyatu dengan gaya */
     .stButton>button {
         font-size: 18px !important;
         font-weight: bold !important;
         padding: 0.7rem 1rem !important;
-        border-radius: 12px !important;
+        border-radius: 15px !important;
     }
     input {
         font-size: 18px !important;
@@ -220,7 +263,7 @@ if kolom_barcode:
 
 # --- SESSION STATE ---
 defaults = {
-    "menu_aktif": None,  # Mulai dengan nilai None agar halaman awal bersih tanpa isi
+    "menu_aktif": None,
     "keranjang": [],
     "scan_trigger": "",
     "scan_counter": 0,
@@ -386,29 +429,36 @@ def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
 st.title("😊 TOKO JABON KIDUL SEPUR")
 st.markdown("### 🙏 Don't Forget to Pray")
 
-# JIKA BELUM ADA MENU YANG DIPILIH -> TAMPILKAN 3 KOTAK BESAR SAJA DI TENGAH
+# JIKA BELUM ADA MENU -> TAMPILKAN 3 BUBBLE BERGERAK DI TENGAH
 if st.session_state.menu_aktif is None:
     st.markdown("---")
-    st.markdown("### Silakan Pilih Menu Utama:")
+    st.markdown("### Pilih Menu Gelembung:")
     c1, c2, c3 = st.columns(3)
 
     with c1:
+        st.markdown('<div class="bubble-card">', unsafe_allow_html=True)
         if st.button("🛒\n\nKASIR UTAMA", use_container_width=True, type="primary"):
             st.session_state.menu_aktif = "Kasir"
             st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
     with c2:
+        st.markdown('<div class="bubble-card blue">', unsafe_allow_html=True)
         if st.button("📋\n\nCARI HARGA", use_container_width=True, type="secondary"):
             st.session_state.menu_aktif = "Database"
             st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
     with c3:
+        st.markdown('<div class="bubble-card yellow">', unsafe_allow_html=True)
         if st.button("➕\n\nTAMBAH BARANG", use_container_width=True, type="secondary"):
             st.session_state.menu_aktif = "Tambah"
             st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
 
-# JIKA SUDAH DIPILIH -> PINDAH KE RUANGANNYA DAN SEDIAKAN ICON NAVIGASI DI ATAS
+# JIKA SUDAH DIPILIH -> MASUK RUANGAN & IKON KECIL DI ATAS
 else:
     st.markdown("---")
-    # Menu Navigasi Berubah Jadi Ikon Kecil di Atas
     nav1, nav2, nav3, nav_kosong = st.columns([1, 1, 1, 4])
     with nav1:
         if st.button("🛒 Kasir", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Kasir" else "secondary"):
