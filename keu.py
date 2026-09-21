@@ -11,7 +11,7 @@ from streamlit_qrcode_scanner import qrcode_scanner
 
 st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🤞", layout="wide")
 
-# --- CSS: BUBBLE STREAMLIT YANG RAPI & BERANIMASI ---
+# --- CSS: BUBBLE STREAMLIT DENGAN FONT GELAP YANG JELAS ---
 st.markdown(
     """
     <style>
@@ -44,7 +44,7 @@ st.markdown(
         animation: floatBubble 4s ease-in-out infinite;
         transition: all 0.3s ease !important;
         box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
-        color: white !important;
+        color: #2d3436 !important; /* Warna teks gelap agar kontras & jelas */
     }
 
     /* Warna Bubble 1: Pink Peach (Kasir) */
