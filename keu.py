@@ -12,31 +12,38 @@ from streamlit_qrcode_scanner import qrcode_scanner
 
 st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🤞", layout="wide")
 
-# --- CSS TAMBAHAN AGAR RAMAH PEMULA & LANSIA (UKURAN LEBIH BESAR & JELAS) ---
+# --- CSS: TAMPILAN MODERN, BERSIH, & TOMBOL BESAR (RAMAH LANSIA/PEMULA) ---
 st.markdown(
     """
     <style>
     .block-container {
-        padding-top: 1.5rem;
+        padding-top: 2rem;
         padding-bottom: 2rem;
-        padding-left: 1.5rem;
-        padding-right: 1.5rem;
+        padding-left: 2rem;
+        padding-right: 2rem;
         max-width: 100%;
     }
-    /* Memperbesar ukuran teks secara umum agar mudah dibaca */
     html, body, [class*="css"] {
         font-size: 18px !important;
     }
-    /* Memperbesar tombol agar gampang ditekan */
     .stButton>button {
         font-size: 18px !important;
         font-weight: bold !important;
-        padding: 0.6rem 1rem !important;
-        border-radius: 10px !important;
+        padding: 0.7rem 1rem !important;
+        border-radius: 12px !important;
     }
-    /* Kotak input lebih tinggi dan jelas */
     input {
         font-size: 18px !important;
+    }
+    /* Kotak Navigasi Utama (Dashboard Card) */
+    .menu-card {
+        background-color: #f8f9fa;
+        border: 2px solid #e9ecef;
+        padding: 20px;
+        border-radius: 15px;
+        text-align: center;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        margin-bottom: 10px;
     }
     </style>
     """,
@@ -49,7 +56,6 @@ st.markdown("### 🙏 Don't Forget to Pray")
 # --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
 
-# Data cadangan kalau Google Sheets gagal diunduh
 FALLBACK = pd.DataFrame({
     "Barcode": ["899111", "899222"],
     "Nama Barang": ["Beras Premium 1 Kg", "Minyak Goreng 1 Liter"],
@@ -62,13 +68,12 @@ FALLBACK = pd.DataFrame({
 @st.cache_data(ttl=300)
 def muat_produk():
     try:
-        df = pd.read_csv(PERMANENT_CSV_URL, dtype=str)  # semua dibaca sebagai teks
+        df = pd.read_csv(PERMANENT_CSV_URL, dtype=str)
         ok = True
     except Exception:
         df = FALLBACK.astype(str)
         ok = False
     df.columns = df.columns.str.strip()
-    # kolom harga diubah jadi angka
     for c in df.columns:
         if c.lower().startswith("harga"):
             df[c] = (
@@ -79,12 +84,11 @@ def muat_produk():
                 .astype(int)
             )
         else:
-            df[c] = df[c].fillna("")  # sel teks kosong tetap kosong (bukan "nan")
+            df[c] = df[c].fillna("")
     return df, ok
 
 
 def norm_kode(x):
-    """Samakan format barcode: hapus spasi, '.0', dan angka 0 di depan."""
     s = str(x).strip().replace("\u00a0", "")
     if s.endswith(".0"):
         s = s[:-2]
@@ -95,7 +99,7 @@ def rp(angka):
     return f"{angka:,.0f}".replace(",", ".")
 
 
-# ============ CETAK LANGSUNG LEWAT BLUETOOTH (BLE) ============
+# ============ CETAK BLUETOOTH (BLE) ============
 HTML_CETAK_BLE = """
 <div style="font-family: sans-serif;">
   <button id="btn" style="width:100%; padding:12px; font-size:18px; font-weight:bold;
@@ -176,14 +180,14 @@ async function cetak() {
   let device = null;
   try {
     if (!navigator.bluetooth) {
-      setStatus("❌ HP/Browser tidak mendukung Bluetooth. Gunakan Chrome.");
+      setStatus("❌ Browser tidak mendukung Bluetooth.");
       return;
     }
     setStatus("Menghubungkan ke printer...");
     const hasil = await sambungkan();
     device = hasil.device;
     if (!hasil.ch) {
-      setStatus("❌ Printer terhubung, tapi jalur cetak tidak dikenali.");
+      setStatus("❌ Jalur cetak printer tidak dikenali.");
       try { device.gatt.disconnect(); } catch (e) {}
       return;
     }
@@ -230,6 +234,7 @@ if kolom_barcode:
 
 # --- SESSION STATE ---
 defaults = {
+    "menu_aktif": "Kasir",  # Default menu utama saat pertama kali dibuka
     "keranjang": [],
     "scan_trigger": "",
     "scan_counter": 0,
@@ -356,7 +361,7 @@ def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
     token = ambil_secret("SHEET_TOKEN")
 
     if not barcode:
-        st.session_state.pesan_tambah = ("warning", "⚠️ Barcode belum diisi atau disedot.")
+        st.session_state.pesan_tambah = ("warning", "⚠️ Barcode belum diisi.")
         return
     if not url or not token:
         st.session_state.pesan_tambah = ("error", "⚠️ Sambungan ke sistem pusat belum diatur.")
@@ -382,7 +387,7 @@ def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
 
     if hasil.get("ok"):
         st.session_state.tambah_riwayat.append((datetime.now().strftime("%H:%M:%S"), barcode, nama or "(Tanpa Nama)"))
-        st.session_state.pesan_tambah = ("success", f"✅ Berhasil menyimpan barang baru!")
+        st.session_state.pesan_tambah = ("success", "✅ Berhasil menyimpan barang baru!")
         st.session_state.tambah_barcode = ""
         st.session_state.tambah_nama = ""
         for c in kol_harga_list:
@@ -391,11 +396,29 @@ def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
         st.session_state.pesan_tambah = ("error", f"⚠️ Ditolak: {hasil.get('error', 'kesalahan')}")
 
 
-# --- TAMPILAN UTAMA BERUPA MENU UTAMA YANG BESAR ---
-tab1, tab2, tab3 = st.tabs(["🛒 KASIR UTAMA", "📋 CARI HARGA", "➕ TAMBAH BARANG"])
+# ================= DASHBOARD 3 KOTAK UTAMA (NAVIGASI) =================
+st.markdown("---")
+c1, c2, c3 = st.columns(3)
 
-# ================= TAB 2 =================
-with tab2:
+with c1:
+    if st.button("🛒 KASIR UTAMA", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Kasir" else "secondary"):
+        st.session_state.menu_aktif = "Kasir"
+        st.rerun()
+with c2:
+    if st.button("📋 CARI HARGA", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Database" else "secondary"):
+        st.session_state.menu_aktif = "Database"
+        st.rerun()
+with c3:
+    if st.button("➕ TAMBAH BARANG", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Tambah" else "secondary"):
+        st.session_state.menu_aktif = "Tambah"
+        st.rerun()
+st.markdown("---")
+
+
+# ================= KONDISI RUANGAN SESUAI PILIHAN KOTAK =================
+
+# ---------------- RUANGAN 2: CARI HARGA (DATABASE) ----------------
+if st.session_state.menu_aktif == "Database":
     st.subheader("📋 Daftar Barang dan Cek Harga")
     st.info("💡 Gunakan halaman ini untuk mencari tahu harga barang dengan cepat.")
 
@@ -423,8 +446,9 @@ with tab2:
             df_tampil[c] = df_tampil[c].map(rp)
     st.dataframe(df_tampil, use_container_width=True)
 
-# ================= TAB 3 =================
-with tab3:
+
+# ---------------- RUANGAN 3: TAMBAH BARANG ----------------
+elif st.session_state.menu_aktif == "Tambah":
     st.subheader("➕ Tambah Barang Baru")
     kolom_harga_list = [c for c in df_produk.columns if c.lower().startswith("harga")]
 
@@ -456,8 +480,9 @@ with tab3:
             tipe_t, teks_t = st.session_state.pesan_tambah
             getattr(st, tipe_t)(teks_t)
 
-# ================= TAB 1 =================
-with tab1:
+
+# ---------------- RUANGAN 1: KASIR UTAMA ----------------
+elif st.session_state.menu_aktif == "Kasir":
     st.markdown("### 🏷️ 1. Pilih Jenis Pembeli")
     jenis_pelanggan = st.selectbox(
         "Pilih kategori pembeli di bawah:",
