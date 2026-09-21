@@ -269,22 +269,6 @@ def simpan_riwayat():
     st.session_state.riwayat = st.session_state.riwayat[-20:]
 
 
-def tambah_ke_keranjang(barcode, nama, harga):
-    simpan_riwayat()
-    for item in st.session_state.keranjang:
-        if item["Nama Barang"] == nama and item["Harga Satuan"] == harga:
-            item["Qty"] += 1
-            item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
-            return
-    st.session_state.keranjang.append({
-        "Barcode": barcode,
-        "Nama Barang": nama,
-        "Qty": 1,
-        "Harga Satuan": harga,
-        "Subtotal": harga,
-    })
-
-
 def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
     val = str(input_val).strip()
     if not val:
@@ -307,7 +291,6 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
         nm = str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)"
         hg = int(row[kolom_harga_pilihan])
         
-        # Update baris keranjang yang sedang diketik
         st.session_state.keranjang[idx_baris] = {
             "Barcode": bcode,
             "Nama Barang": nm,
@@ -317,7 +300,6 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
         }
         st.session_state.pesan = ("success", f"✅ Memuat: **{nm}** (Rp {rp(hg)})")
     else:
-        # Jika hasil lebih dari 1, simpan pilihan dropdown sementara di item keranjang
         opsi_list = []
         for _, row in df_match.iterrows():
             bcode = str(row[kolom_barcode]).strip() if kolom_barcode else "-"
@@ -372,9 +354,8 @@ def ubah_qty_langsung(index_item, delta):
 def hapus_item_satuan(index_item):
     simpan_riwayat()
     if 0 <= index_item < len(st.session_state.keranjang):
-        nama_dihapus = st.session_state.keranjang[index_item]["Nama Barang"]
         st.session_state.keranjang.pop(index_item)
-        st.session_state.pesan = ("info", f"❌ Baris dihapus dari keranjang.")
+        st.session_state.pesan = ("info", "❌ Baris dihapus dari keranjang.")
         st.session_state.editor_counter += 1
 
 
@@ -587,7 +568,6 @@ else:
         st.markdown("---")
 
         if not st.session_state.keranjang:
-            # Otomatis buat 1 baris kosong pertama jika keranjang kosong
             st.session_state.keranjang.append({
                 "Barcode": "",
                 "Nama Barang": "Ketik barcode atau nama barang...",
@@ -601,7 +581,20 @@ else:
             getattr(st, tipe)(teks)
 
         st.markdown("### 🛒 Daftar Belanjaan")
-        st.info("💡 Ketik nama barang / barcode atau scan langsung di kolom **Barcode / Kode**, lalu tekan **Enter**.")
+        st.info("💡 Ketik nama barang atau barcode di kolom **Barcode / Kode**, maka pilihan/dropdown akan muncul secara otomatis. Tekan **Enter** untuk memilih.")
+
+        # Buat HTML Datalist untuk dropdown otomatis berdasarkan database produk
+        options_html = ""
+        for _, row in df_produk.iterrows():
+            b_val = str(row[kolom_barcode]).strip() if kolom_barcode else ""
+            n_val = str(row[kolom_nama_barang]).strip()
+            if b_val:
+                options_html += f'<option value="{b_val}">{n_val}</option>'
+            if n_val:
+                options_html += f'<option value="{n_val}"></option>'
+
+        # Sisipkan Datalist HTML ke dalam halaman
+        components.html(f'<datalist id="list_produk">{options_html}</datalist>', height=0)
 
         # Header tabel
         h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
@@ -621,15 +614,27 @@ else:
         for idx, item in enumerate(st.session_state.keranjang):
             row_c0, row_c1, row_c2, row_c3, row_c4 = st.columns([1.8, 3, 2, 2, 1])
             with row_c0:
-                st.text_input(
-                    "Barcode",
-                    value=item.get("Barcode", ""),
-                    key=f"input_bc_{idx}_{st.session_state.editor_counter}",
-                    placeholder="Ketik/Scan...",
-                    label_visibility="collapsed",
-                    on_change=proses_input_barcode,
-                    args=(idx, st.session_state.get(f"input_bc_{idx}_{st.session_state.editor_counter}", ""), kolom_harga_pilihan)
-                )
+                # Menggunakan HTML input dengan list="list_produk" agar dropdown bawaan browser aktif saat mengetik
+                val_bc = item.get("Barcode", "")
+                input_key = f"input_bc_{idx}_{st.session_state.editor_counter}"
+                
+                # Render input dengan atribut list datalist melalui komponen kustom kecil
+                components.html(f"""
+                <div style="margin: 0px; padding: 0px; font-family: sans-serif;">
+                  <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Ketik/Scan..." 
+                         list="list_produk" 
+                         style="width: 100%; padding: 8px 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
+                         onkeydown="if(event.key === 'Enter') {{ parent.document.getElementById('hidden_submit_{idx}').click(); }}"
+                         oninput="parent.document.getElementById('val_{idx}').value = this.value;" />
+                </div>
+                """, height=45)
+                
+                # Hidden input & button untuk sinkronisasi nilai ke Streamlit Python
+                val_terisi = st.text_input("val", value=val_bc, key=f"val_{idx}", label_visibility="collapsed")
+                if st.button("Submit", key=f"hidden_submit_{idx}", help="Enter"):
+                    proses_input_barcode(idx, val_terisi, kolom_harga_pilihan)
+                    st.rerun()
+
             with row_c1:
                 st.markdown(f"**{idx + 1}. {item['Nama Barang']}**<br><span style='color:gray; font-size:14px;'>@ Rp {rp(item['Harga Satuan'])}</span>", unsafe_allow_html=True)
             with row_c2:
@@ -651,7 +656,6 @@ else:
                     hapus_item_satuan(idx)
                     st.rerun()
 
-            # Jika ada dropdown pilihan dari hasil pencarian ganda di baris ini
             if "_dropdown_pilihan" in item:
                 st.markdown(f"🔽 **Pilih barang untuk baris {idx+1}:**")
                 for p_idx, (p_bcode, p_nm, p_hg) in enumerate(item["_dropdown_pilihan"]):
