@@ -11,7 +11,7 @@ from streamlit_qrcode_scanner import qrcode_scanner
 
 st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🤞", layout="wide")
 
-# --- CSS: BUBBLE STREAMLIT DENGAN FONT GELAP YANG JELAS ---
+# --- CSS: BUBBLE HANYA UNTUK MENU UTAMA, TOMBOL LAIN NORMAL ---
 st.markdown(
     """
     <style>
@@ -26,15 +26,15 @@ st.markdown(
         font-size: 18px !important;
     }
     
-    /* Animasi Melayang Lembut */
+    /* Animasi Melayang Lembut Khusus Menu Utama */
     @keyframes floatBubble {
         0% { transform: translateY(0px) scale(1); }
         50% { transform: translateY(-6px) scale(1.02); }
         100% { transform: translateY(0px) scale(1); }
     }
 
-    /* Kustomisasi Tombol Streamlit Menjadi Bubble Lucu */
-    .stButton > button {
+    /* Kustomisasi Khusus Tombol Menu Utama di Beranda */
+    div[data-testid="column"] .menu-btn > button {
         width: 100% !important;
         border-radius: 40px !important;
         padding: 35px 20px !important;
@@ -47,31 +47,14 @@ st.markdown(
         color: #2d3436 !important;
     }
 
-    /* Warna Bubble 1: Pink Peach (Kasir) */
-    div[data-testid="column"]:nth-of-type(1) .stButton > button {
+    div[data-testid="column"]:nth-of-type(1) .menu-btn > button {
         background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 99%, #fad0c4 100%) !important;
     }
-    div[data-testid="column"]:nth-of-type(1) .stButton > button:hover {
-        transform: scale(1.06) !important;
-        box-shadow: 0 15px 30px rgba(255, 154, 158, 0.6) !important;
-    }
-
-    /* Warna Bubble 2: Biru Langit (Cari Harga) */
-    div[data-testid="column"]:nth-of-type(2) .stButton > button {
+    div[data-testid="column"]:nth-of-type(2) .menu-btn > button {
         background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%) !important;
     }
-    div[data-testid="column"]:nth-of-type(2) .stButton > button:hover {
-        transform: scale(1.06) !important;
-        box-shadow: 0 15px 30px rgba(161, 196, 253, 0.6) !important;
-    }
-
-    /* Warna Bubble 3: Kuning Ceria (Tambah Barang) */
-    div[data-testid="column"]:nth-of-type(3) .stButton > button {
+    div[data-testid="column"]:nth-of-type(3) .menu-btn > button {
         background: linear-gradient(135deg, #fbc531 0%, #e1b12c 100%) !important;
-    }
-    div[data-testid="column"]:nth-of-type(3) .stButton > button:hover {
-        transform: scale(1.06) !important;
-        box-shadow: 0 15px 30px rgba(251, 197, 49, 0.6) !important;
     }
 
     input {
@@ -329,39 +312,6 @@ def ubah_qty_langsung(index_item, delta):
         st.session_state.editor_counter += 1
 
 
-def terapkan_edit_qty():
-    key = f"editor_keranjang_{st.session_state.editor_counter}"
-    edits = st.session_state.get(key, {}).get("edited_rows", {})
-    simpan_riwayat()
-    
-    baru = []
-    pesan_hapus = None
-    for i, item in enumerate(st.session_state.keranjang):
-        row_edit = edits.get(i, {})
-        qty = row_edit.get("Qty", item["Qty"])
-        hapus_centang = row_edit.get("Hapus", False)
-        
-        try:
-            qty = int(qty)
-        except (TypeError, ValueError):
-            qty = item["Qty"]
-            
-        if hapus_centang:
-            pesan_hapus = f"❌ {item['Nama Barang']} dihapus dari keranjang."
-            continue
-            
-        if qty > 0:
-            item["Qty"] = qty
-            item["Subtotal"] = qty * item["Harga Satuan"]
-            item["Hapus"] = False
-            baru.append(item)
-            
-    st.session_state.keranjang = baru
-    st.session_state.editor_counter += 1
-    if pesan_hapus:
-        st.session_state.pesan = ("info", pesan_hapus)
-
-
 def batalkan_terakhir():
     if st.session_state.riwayat:
         st.session_state.keranjang = st.session_state.riwayat.pop()
@@ -452,19 +402,28 @@ if st.session_state.menu_aktif is None:
     c1, c2, c3 = st.columns(3)
 
     with c1:
-        if st.button("🛒\n\nKASIR UTAMA"):
-            st.session_state.menu_aktif = "Kasir"
-            st.rerun()
+        with st.container():
+            st.markdown('<div class="menu-btn">', unsafe_allow_html=True)
+            if st.button("🛒\n\nKASIR UTAMA", key="menu_kasir_utama"):
+                st.session_state.menu_aktif = "Kasir"
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
 
     with c2:
-        if st.button("📋\n\nCARI HARGA"):
-            st.session_state.menu_aktif = "Database"
-            st.rerun()
+        with st.container():
+            st.markdown('<div class="menu-btn">', unsafe_allow_html=True)
+            if st.button("📋\n\nCARI HARGA", key="menu_cari_harga"):
+                st.session_state.menu_aktif = "Database"
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
 
     with c3:
-        if st.button("➕\n\nTAMBAH BARANG"):
-            st.session_state.menu_aktif = "Tambah"
-            st.rerun()
+        with st.container():
+            st.markdown('<div class="menu-btn">', unsafe_allow_html=True)
+            if st.button("➕\n\nTAMBAH BARANG", key="menu_tambah_barang"):
+                st.session_state.menu_aktif = "Tambah"
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
 
 # JIKA SUDAH DIPILIH -> MASUK RUANGAN & IKON KECIL DI ATAS
 else:
@@ -643,27 +602,40 @@ else:
         # ================= KERANJANG & NOTA =================
         if len(st.session_state.keranjang) > 0:
             st.subheader("🛒 3. Daftar Belanjaan (Keranjang)")
-            st.info("💡 Gunakan tombol **-** dan **+** di bawah untuk mengurangi atau menambah jumlah barang dengan cepat.")
+            st.info("💡 Gunakan tombol **-** dan **+** di kolom jumlah untuk mengurangi atau menambah barang.")
             
-            # Tampilkan tombol tambah / kurang per baris di atas tabel
-            for idx, item in enumerate(st.session_state.keranjang):
-                cols = st.columns([3, 1, 1, 1, 1])
-                with cols[0]:
-                    st.markdown(f"**{idx + 1}. {item['Nama Barang']}**")
-                with cols[1]:
-                    st.markdown(f"Qty: **{item['Qty']}**")
-                with cols[2]:
-                    if st.button("➖", key=f"min_{idx}", use_container_width=True):
-                        ubah_qty_langsung(idx, -1)
-                        st.rerun()
-                with cols[3]:
-                    if st.button("➕", key=f"plus_{idx}", use_container_width=True):
-                        ubah_qty_langsung(idx, 1)
-                        st.rerun()
-                with cols[4]:
-                    st.markdown(f"Rp {rp(item['Subtotal'])}")
-
+            # Header kolom tabel keranjang
+            h_col1, h_col2, h_col3 = st.columns([4, 2, 2])
+            with h_col1:
+                st.markdown("**Nama Barang**")
+            with h_col2:
+                st.markdown("**Jumlah (Qty)**")
+            with h_col3:
+                st.markdown("**Subtotal**")
             st.markdown("---")
+
+            # Baris item keranjang dengan tombol - dan + di kolom jumlah
+            for idx, item in enumerate(st.session_state.keranjang):
+                row_c1, row_c2, row_c3 = st.columns([4, 2, 2])
+                with row_c1:
+                    st.markdown(f"**{idx + 1}. {item['Nama Barang']}**<br><span style='color:gray; font-size:14px;'>@ Rp {rp(item['Harga Satuan'])}</span>", unsafe_allow_html=True)
+                with row_c2:
+                    sub_q1, sub_q2, sub_q3 = st.columns([1, 1, 1])
+                    with sub_q1:
+                        if st.button("➖", key=f"min_{idx}", use_container_width=True):
+                            ubah_qty_langsung(idx, -1)
+                            st.rerun()
+                    with sub_q2:
+                        st.markdown(f"<div style='text-align: center; font-weight: bold; padding-top: 5px;'>{item['Qty']}</div>", unsafe_allow_html=True)
+                    with sub_q3:
+                        if st.button("➕", key=f"plus_{idx}", use_container_width=True):
+                            ubah_qty_langsung(idx, 1)
+                            st.rerun()
+                with row_c2.empty(): # perata letak
+                    pass
+                with row_c3:
+                    st.markdown(f"**Rp {rp(item['Subtotal'])}**")
+                st.markdown("---")
 
             df_keranjang = pd.DataFrame(st.session_state.keranjang)
             subtotal_barang = int(df_keranjang["Subtotal"].sum())
