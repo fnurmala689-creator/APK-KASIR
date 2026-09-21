@@ -581,9 +581,9 @@ else:
             getattr(st, tipe)(teks)
 
         st.markdown("### 🛒 Daftar Belanjaan")
-        st.info("💡 Ketik nama barang atau barcode di kolom **Barcode / Kode**, maka pilihan/dropdown akan muncul secara otomatis. Tekan **Enter** untuk memilih.")
+        st.info("💡 Ketik nama barang atau barcode di kolom **Barcode / Kode**, maka daftar pilihan akan muncul secara otomatis. Tekan **Enter** untuk memilih.")
 
-        # Buat HTML Datalist untuk dropdown otomatis berdasarkan database produk
+        # Siapkan string opsi HTML untuk datalist
         options_html = ""
         for _, row in df_produk.iterrows():
             b_val = str(row[kolom_barcode]).strip() if kolom_barcode else ""
@@ -592,9 +592,6 @@ else:
                 options_html += f'<option value="{b_val}">{n_val}</option>'
             if n_val:
                 options_html += f'<option value="{n_val}"></option>'
-
-        # Sisipkan Datalist HTML ke dalam halaman
-        components.html(f'<datalist id="list_produk">{options_html}</datalist>', height=0)
 
         # Header tabel
         h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
@@ -614,18 +611,19 @@ else:
         for idx, item in enumerate(st.session_state.keranjang):
             row_c0, row_c1, row_c2, row_c3, row_c4 = st.columns([1.8, 3, 2, 2, 1])
             with row_c0:
-                # Menggunakan HTML input dengan list="list_produk" agar dropdown bawaan browser aktif saat mengetik
                 val_bc = item.get("Barcode", "")
-                input_key = f"input_bc_{idx}_{st.session_state.editor_counter}"
                 
-                # Render input dengan atribut list datalist melalui komponen kustom kecil
+                # Menggabungkan input dan datalist di DALAM satu komponen iframe yang sama
                 components.html(f"""
                 <div style="margin: 0px; padding: 0px; font-family: sans-serif;">
                   <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Ketik/Scan..." 
-                         list="list_produk" 
+                         list="list_produk_{idx}" 
                          style="width: 100%; padding: 8px 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
                          onkeydown="if(event.key === 'Enter') {{ parent.document.getElementById('hidden_submit_{idx}').click(); }}"
                          oninput="parent.document.getElementById('val_{idx}').value = this.value;" />
+                  <datalist id="list_produk_{idx}">
+                    {options_html}
+                  </datalist>
                 </div>
                 """, height=45)
                 
