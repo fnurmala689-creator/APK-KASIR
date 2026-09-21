@@ -11,7 +11,7 @@ from streamlit_qrcode_scanner import qrcode_scanner
 
 st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🤞", layout="wide")
 
-# --- CSS: TAMPILAN BUBBLE LUCU & ANIMASI GERAKAN ---
+# --- CSS: BUBBLE LUCU, TULISAN DI DALAM, & EFEK KLIK MEMANTUL ---
 st.markdown(
     """
     <style>
@@ -26,54 +26,77 @@ st.markdown(
         font-size: 18px !important;
     }
     
-    /* Efek Animasi Melayang untuk Bubble */
+    /* Animasi Melayang Lembut */
     @keyframes floatBubble {
         0% { transform: translateY(0px) scale(1); }
         50% { transform: translateY(-8px) scale(1.02); }
         100% { transform: translateY(0px) scale(1); }
     }
 
-    /* Styling Kotak/Tombol Menyerupai Bubble Lucu */
-    .bubble-card {
+    /* Container Tombol Bubble Utama */
+    .bubble-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 15px;
+    }
+
+    /* Styling Kartu Bubble */
+    .bubble-btn {
+        display: block;
+        width: 100%;
         background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 99%, #fad0c4 100%);
-        border: 3px solid #ffffff;
-        padding: 25px 15px;
+        border: 4px solid #ffffff;
+        padding: 30px 20px;
         border-radius: 50px;
         text-align: center;
         box-shadow: 0 10px 25px rgba(255, 154, 158, 0.4);
-        margin: 10px;
         animation: floatBubble 4s ease-in-out infinite;
-        transition: all 0.3s ease;
+        transition: all 0.2s ease-in-out;
+        text-decoration: none !important;
+        cursor: pointer;
     }
     
-    .bubble-card:hover {
+    .bubble-btn:hover {
         transform: scale(1.08);
         box-shadow: 0 15px 30px rgba(255, 154, 158, 0.6);
     }
 
-    .bubble-card.blue {
+    /* Efek Ketika Diklik (Memantul / Mengecil Lucu) */
+    .bubble-btn:active {
+        transform: scale(0.92) !important;
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    }
+
+    .bubble-btn.blue {
         background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
         box-shadow: 0 10px 25px rgba(161, 196, 253, 0.4);
     }
-    .bubble-card.blue:hover {
+    .bubble-btn.blue:hover {
         box-shadow: 0 15px 30px rgba(161, 196, 253, 0.6);
     }
 
-    .bubble-card.yellow {
+    .bubble-btn.yellow {
         background: linear-gradient(135deg, #fbc531 0%, #e1b12c 100%);
         box-shadow: 0 10px 25px rgba(251, 197, 49, 0.4);
     }
-    .bubble-card.yellow:hover {
+    .bubble-btn.yellow:hover {
         box-shadow: 0 15px 30px rgba(251, 197, 49, 0.6);
     }
 
-    /* Tombol Streamlit disesuaikan agar menyatu dengan gaya */
-    .stButton>button {
-        font-size: 18px !important;
-        font-weight: bold !important;
-        padding: 0.7rem 1rem !important;
-        border-radius: 15px !important;
+    .bubble-title {
+        font-size: 24px;
+        font-weight: 900;
+        color: #ffffff;
+        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        margin: 0;
     }
+    
+    .bubble-icon {
+        font-size: 36px;
+        margin-bottom: 5px;
+    }
+
     input {
         font-size: 18px !important;
     }
@@ -429,32 +452,59 @@ def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
 st.title("😊 TOKO JABON KIDUL SEPUR")
 st.markdown("### 🙏 Don't Forget to Pray")
 
-# JIKA BELUM ADA MENU -> TAMPILKAN 3 BUBBLE BERGERAK DI TENGAH
+# JIKA BELUM ADA MENU -> TAMPILKAN 3 BUBBLE INTERAKTIF DI TENGAH
 if st.session_state.menu_aktif is None:
     st.markdown("---")
     st.markdown("### Pilih Menu Gelembung:")
     c1, c2, c3 = st.columns(3)
 
-    with c1:
-        st.markdown('<div class="bubble-card">', unsafe_allow_html=True)
-        if st.button("🛒\n\nKASIR UTAMA", use_container_width=True, type="primary"):
-            st.session_state.menu_aktif = "Kasir"
+    # Tangkap klik parameter URL atau query params buatan Streamlit
+    query_params = st.query_params
+    if "pilih" in query_params:
+        pilihan_menu = query_params["pilih"]
+        if pilihan_menu in ["Kasir", "Database", "Tambah"]:
+            st.session_state.menu_aktif = pilihan_menu
+            st.query_params.clear()
             st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+
+    with c1:
+        st.markdown(
+            """
+            <div class="bubble-container">
+                <a href="?pilih=Kasir" class="bubble-btn">
+                    <div class="bubble-icon">🛒</div>
+                    <div class="bubble-title">KASIR UTAMA</div>
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     with c2:
-        st.markdown('<div class="bubble-card blue">', unsafe_allow_html=True)
-        if st.button("📋\n\nCARI HARGA", use_container_width=True, type="secondary"):
-            st.session_state.menu_aktif = "Database"
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="bubble-container">
+                <a href="?pilih=Database" class="bubble-btn blue">
+                    <div class="bubble-icon">📋</div>
+                    <div class="bubble-title">CARI HARGA</div>
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
     with c3:
-        st.markdown('<div class="bubble-card yellow">', unsafe_allow_html=True)
-        if st.button("➕\n\nTAMBAH BARANG", use_container_width=True, type="secondary"):
-            st.session_state.menu_aktif = "Tambah"
-            st.rerun()
-        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown(
+            """
+            <div class="bubble-container">
+                <a href="?pilih=Tambah" class="bubble-btn yellow">
+                    <div class="bubble-icon">➕</div>
+                    <div class="bubble-title">TAMBAH BARANG</div>
+                </a>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
 
 # JIKA SUDAH DIPILIH -> MASUK RUANGAN & IKON KECIL DI ATAS
 else:
