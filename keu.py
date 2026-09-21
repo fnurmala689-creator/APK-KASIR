@@ -11,7 +11,7 @@ from streamlit_qrcode_scanner import qrcode_scanner
 
 st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🤞", layout="wide")
 
-# --- CSS: BUBBLE LUCU, TULISAN DI DALAM, & EFEK KLIK MEMANTUL ---
+# --- CSS: BUBBLE STREAMLIT YANG RAPI & BERANIMASI ---
 st.markdown(
     """
     <style>
@@ -29,72 +29,49 @@ st.markdown(
     /* Animasi Melayang Lembut */
     @keyframes floatBubble {
         0% { transform: translateY(0px) scale(1); }
-        50% { transform: translateY(-8px) scale(1.02); }
+        50% { transform: translateY(-6px) scale(1.02); }
         100% { transform: translateY(0px) scale(1); }
     }
 
-    /* Container Tombol Bubble Utama */
-    .bubble-container {
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        margin: 15px;
-    }
-
-    /* Styling Kartu Bubble */
-    .bubble-btn {
-        display: block;
-        width: 100%;
-        background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 99%, #fad0c4 100%);
-        border: 4px solid #ffffff;
-        padding: 30px 20px;
-        border-radius: 50px;
-        text-align: center;
-        box-shadow: 0 10px 25px rgba(255, 154, 158, 0.4);
+    /* Kustomisasi Tombol Streamlit Menjadi Bubble Lucu */
+    .stButton > button {
+        width: 100% !important;
+        border-radius: 40px !important;
+        padding: 35px 20px !important;
+        font-size: 20px !important;
+        font-weight: 900 !important;
+        border: 4px solid #ffffff !important;
         animation: floatBubble 4s ease-in-out infinite;
-        transition: all 0.2s ease-in-out;
-        text-decoration: none !important;
-        cursor: pointer;
-    }
-    
-    .bubble-btn:hover {
-        transform: scale(1.08);
-        box-shadow: 0 15px 30px rgba(255, 154, 158, 0.6);
+        transition: all 0.3s ease !important;
+        box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+        color: white !important;
     }
 
-    /* Efek Ketika Diklik (Memantul / Mengecil Lucu) */
-    .bubble-btn:active {
-        transform: scale(0.92) !important;
-        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+    /* Warna Bubble 1: Pink Peach (Kasir) */
+    div[data-testid="column"]:nth-of-type(1) .stButton > button {
+        background: linear-gradient(135deg, #ff9a9e 0%, #fad0c4 99%, #fad0c4 100%) !important;
+    }
+    div[data-testid="column"]:nth-of-type(1) .stButton > button:hover {
+        transform: scale(1.06) !important;
+        box-shadow: 0 15px 30px rgba(255, 154, 158, 0.6) !important;
     }
 
-    .bubble-btn.blue {
-        background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
-        box-shadow: 0 10px 25px rgba(161, 196, 253, 0.4);
+    /* Warna Bubble 2: Biru Langit (Cari Harga) */
+    div[data-testid="column"]:nth-of-type(2) .stButton > button {
+        background: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%) !important;
     }
-    .bubble-btn.blue:hover {
-        box-shadow: 0 15px 30px rgba(161, 196, 253, 0.6);
-    }
-
-    .bubble-btn.yellow {
-        background: linear-gradient(135deg, #fbc531 0%, #e1b12c 100%);
-        box-shadow: 0 10px 25px rgba(251, 197, 49, 0.4);
-    }
-    .bubble-btn.yellow:hover {
-        box-shadow: 0 15px 30px rgba(251, 197, 49, 0.6);
+    div[data-testid="column"]:nth-of-type(2) .stButton > button:hover {
+        transform: scale(1.06) !important;
+        box-shadow: 0 15px 30px rgba(161, 196, 253, 0.6) !important;
     }
 
-    .bubble-title {
-        font-size: 24px;
-        font-weight: 900;
-        color: #ffffff;
-        text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
-        margin: 0;
+    /* Warna Bubble 3: Kuning Ceria (Tambah Barang) */
+    div[data-testid="column"]:nth-of-type(3) .stButton > button {
+        background: linear-gradient(135deg, #fbc531 0%, #e1b12c 100%) !important;
     }
-    
-    .bubble-icon {
-        font-size: 36px;
-        margin-bottom: 5px;
+    div[data-testid="column"]:nth-of-type(3) .stButton > button:hover {
+        transform: scale(1.06) !important;
+        box-shadow: 0 15px 30px rgba(251, 197, 49, 0.6) !important;
     }
 
     input {
@@ -452,59 +429,26 @@ def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
 st.title("😊 TOKO JABON KIDUL SEPUR")
 st.markdown("### 🙏 Don't Forget to Pray")
 
-# JIKA BELUM ADA MENU -> TAMPILKAN 3 BUBBLE INTERAKTIF DI TENGAH
+# JIKA BELUM ADA MENU -> TAMPILKAN 3 BUBBLE TOMBOL UTAMA
 if st.session_state.menu_aktif is None:
     st.markdown("---")
     st.markdown("### Pilih Menu Gelembung:")
     c1, c2, c3 = st.columns(3)
 
-    # Tangkap klik parameter URL atau query params buatan Streamlit
-    query_params = st.query_params
-    if "pilih" in query_params:
-        pilihan_menu = query_params["pilih"]
-        if pilihan_menu in ["Kasir", "Database", "Tambah"]:
-            st.session_state.menu_aktif = pilihan_menu
-            st.query_params.clear()
+    with c1:
+        if st.button("🛒\n\nKASIR UTAMA"):
+            st.session_state.menu_aktif = "Kasir"
             st.rerun()
 
-    with c1:
-        st.markdown(
-            """
-            <div class="bubble-container">
-                <a href="?pilih=Kasir" class="bubble-btn">
-                    <div class="bubble-icon">🛒</div>
-                    <div class="bubble-title">KASIR UTAMA</div>
-                </a>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-
     with c2:
-        st.markdown(
-            """
-            <div class="bubble-container">
-                <a href="?pilih=Database" class="bubble-btn blue">
-                    <div class="bubble-icon">📋</div>
-                    <div class="bubble-title">CARI HARGA</div>
-                </a>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        if st.button("📋\n\nCARI HARGA"):
+            st.session_state.menu_aktif = "Database"
+            st.rerun()
 
     with c3:
-        st.markdown(
-            """
-            <div class="bubble-container">
-                <a href="?pilih=Tambah" class="bubble-btn yellow">
-                    <div class="bubble-icon">➕</div>
-                    <div class="bubble-title">TAMBAH BARANG</div>
-                </a>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+        if st.button("➕\n\nTAMBAH BARANG"):
+            st.session_state.menu_aktif = "Tambah"
+            st.rerun()
 
 # JIKA SUDAH DIPILIH -> MASUK RUANGAN & IKON KECIL DI ATAS
 else:
