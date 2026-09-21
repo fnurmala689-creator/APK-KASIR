@@ -248,19 +248,15 @@ if kolom_barcode:
 defaults = {
     "menu_aktif": None,
     "keranjang": [],
-    "scan_trigger": "",
-    "scan_counter": 0,
     "scan_counter_db": 0,
     "scan_counter_tambah": 0,
     "tambah_barcode": "",
     "tambah_nama": "",
     "tambah_riwayat": [],
     "pesan_tambah": None,
-    "last_scan": "",
     "editor_counter": 0,
     "riwayat": [],
     "konfirmasi_kosong": False,
-    "pilihan": [],
     "pesan": None,
 }
 for k, v in defaults.items():
@@ -289,15 +285,76 @@ def tambah_ke_keranjang(barcode, nama, harga):
     })
 
 
-def pilih_produk(barcode, nama, harga):
-    tambah_ke_keranjang(barcode, nama, harga)
-    st.session_state.pilihan = []
-    st.session_state.pesan = ("success", f"✅ Masuk Keranjang: **{nama}** (Rp {rp(harga)})")
+def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
+    val = str(input_val).strip()
+    if not val:
+        return
+
+    simpan_riwayat()
+    df_match = pd.DataFrame()
+    if kolom_barcode:
+        df_match = df_produk[df_produk["_kode"] == norm_kode(val)]
+    if len(df_match) == 0:
+        df_match = df_produk[
+            df_produk[kolom_nama_barang].astype(str).str.contains(val, case=False, na=False, regex=False)
+        ]
+
+    if len(df_match) == 0:
+        st.session_state.pesan = ("warning", f"⚠️ Barang '{val}' tidak ditemukan.")
+    elif len(df_match) == 1:
+        row = df_match.iloc[0]
+        bcode = str(row[kolom_barcode]).strip() if kolom_barcode else "-"
+        nm = str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)"
+        hg = int(row[kolom_harga_pilihan])
+        
+        # Update baris keranjang yang sedang diketik
+        st.session_state.keranjang[idx_baris] = {
+            "Barcode": bcode,
+            "Nama Barang": nm,
+            "Qty": 1,
+            "Harga Satuan": hg,
+            "Subtotal": hg,
+        }
+        st.session_state.pesan = ("success", f"✅ Memuat: **{nm}** (Rp {rp(hg)})")
+    else:
+        # Jika hasil lebih dari 1, simpan pilihan dropdown sementara di item keranjang
+        opsi_list = []
+        for _, row in df_match.iterrows():
+            bcode = str(row[kolom_barcode]).strip() if kolom_barcode else "-"
+            nm = str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)"
+            hg = int(row[kolom_harga_pilihan])
+            opsi_list.append((bcode, nm, hg))
+        st.session_state.keranjang[idx_baris]["_dropdown_pilihan"] = opsi_list
+        st.session_state.pesan = ("info", f"Ditemukan beberapa barang untuk '{val}', silakan pilih dari daftar.")
+    
+    st.session_state.editor_counter += 1
 
 
-def submit_teks():
-    st.session_state.scan_trigger = st.session_state.input_text_kasir.strip()
-    st.session_state.input_text_kasir = ""
+def pilih_dari_dropdown(idx_baris, bcode, nm, hg):
+    simpan_riwayat()
+    st.session_state.keranjang[idx_baris] = {
+        "Barcode": bcode,
+        "Nama Barang": nm,
+        "Qty": 1,
+        "Harga Satuan": hg,
+        "Subtotal": hg,
+    }
+    if "_dropdown_pilihan" in st.session_state.keranjang[idx_baris]:
+        del st.session_state.keranjang[idx_baris]["_dropdown_pilihan"]
+    st.session_state.pesan = ("success", f"✅ Dipilih: **{nm}** (Rp {rp(hg)})")
+    st.session_state.editor_counter += 1
+
+
+def tambah_baris_kosong():
+    simpan_riwayat()
+    st.session_state.keranjang.append({
+        "Barcode": "",
+        "Nama Barang": "Ketik barcode atau nama barang...",
+        "Qty": 1,
+        "Harga Satuan": 0,
+        "Subtotal": 0,
+    })
+    st.session_state.editor_counter += 1
 
 
 def ubah_qty_langsung(index_item, delta):
@@ -317,7 +374,7 @@ def hapus_item_satuan(index_item):
     if 0 <= index_item < len(st.session_state.keranjang):
         nama_dihapus = st.session_state.keranjang[index_item]["Nama Barang"]
         st.session_state.keranjang.pop(index_item)
-        st.session_state.pesan = ("info", f"❌ {nama_dihapus} dihapus dari keranjang.")
+        st.session_state.pesan = ("info", f"❌ Baris dihapus dari keranjang.")
         st.session_state.editor_counter += 1
 
 
@@ -325,7 +382,6 @@ def batalkan_terakhir():
     if st.session_state.riwayat:
         st.session_state.keranjang = st.session_state.riwayat.pop()
         st.session_state.editor_counter += 1
-        st.session_state.pilihan = []
         st.session_state.pesan = ("info", "↩️ Perubahan terakhir dibatalkan.")
 
 
@@ -340,9 +396,7 @@ def batal_kosongkan():
 def kosongkan_keranjang():
     simpan_riwayat()
     st.session_state.keranjang = []
-    st.session_state.pilihan = []
     st.session_state.pesan = ("info", "🗑️ Keranjang dikosongkan.")
-    st.session_state.last_scan = ""
     st.session_state.konfirmasi_kosong = False
     st.session_state.editor_counter += 1
 
@@ -531,130 +585,92 @@ else:
             kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
 
         st.markdown("---")
-        
-        # --- INPUT CEPAT / SCANNER LANGSUNG (TANPA EXPANDER) ---
-        col_in1, col_in2 = st.columns([3, 1])
-        with col_in1:
-            st.text_input(
-                "🔍 Ketik Nama Barang / Barcode & Tekan Enter (atau Scan):",
-                placeholder="Ketik atau scan di sini...",
-                key="input_text_kasir",
-                on_change=submit_teks,
-            )
-        with col_in2:
-            buka_kamera = st.checkbox("📷 Kamera Scan", value=False, key="toggle_kamera_box")
 
-        if buka_kamera:
-            hasil_scan = qrcode_scanner(key=f"scanner_{st.session_state.scan_counter}")
-            if hasil_scan:
-                st.session_state.scan_trigger = str(hasil_scan).strip()
-                st.session_state.last_scan = str(hasil_scan).strip()
-                st.session_state.scan_counter += 1
-                st.rerun()
-
-        # --- PEMROSESAN KEYWORD ---
-        keyword_aktif = st.session_state.scan_trigger
-        if keyword_aktif:
-            st.session_state.scan_trigger = ""
-            st.session_state.pilihan = []
-            st.session_state.pesan = None
-
-            df_match = pd.DataFrame()
-            if kolom_barcode:
-                df_match = df_produk[df_produk["_kode"] == norm_kode(keyword_aktif)]
-            if len(df_match) == 0:
-                df_match = df_produk[
-                    df_produk[kolom_nama_barang].astype(str).str.contains(
-                        keyword_aktif, case=False, na=False, regex=False
-                    )
-                ]
-
-            if len(df_match) == 0:
-                st.session_state.pesan = ("warning", f"⚠️ Maaf, barang '{keyword_aktif}' tidak ditemukan.")
-            else:
-                daftar = []
-                for _, row in df_match.iterrows():
-                    harga = int(row[kolom_harga_pilihan])
-                    bcode = str(row[kolom_barcode]).strip() if kolom_barcode else "-"
-                    daftar.append((bcode, str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)", harga))
-
-                if len(daftar) == 1:
-                    pilih_produk(*daftar[0])
-                else:
-                    st.session_state.pilihan = daftar
-                    st.session_state.pesan = ("info", f"Ditemukan beberapa barang untuk '{keyword_aktif}', silakan pilih salah satu:")
+        if not st.session_state.keranjang:
+            # Otomatis buat 1 baris kosong pertama jika keranjang kosong
+            st.session_state.keranjang.append({
+                "Barcode": "",
+                "Nama Barang": "Ketik barcode atau nama barang...",
+                "Qty": 1,
+                "Harga Satuan": 0,
+                "Subtotal": 0,
+            })
 
         if st.session_state.pesan:
             tipe, teks = st.session_state.pesan
             getattr(st, tipe)(teks)
 
-        for i, (bcode, nm, hg) in enumerate(st.session_state.pilihan):
-            st.button(
-                f"👉 Pilih: [{bcode}] {nm} - Rp {rp(hg)}",
-                key=f"pilih_{i}",
-                on_click=pilih_produk,
-                args=(bcode, nm, hg),
-                use_container_width=True
-            )
+        st.markdown("### 🛒 Daftar Belanjaan")
+        st.info("💡 Ketik nama barang / barcode atau scan langsung di kolom **Barcode / Kode**, lalu tekan **Enter**.")
 
-        if st.session_state.riwayat:
-            st.markdown("")
-            st.button(
-                "↩️ BATALKAN PERUBAHAN TERAKHIR",
-                on_click=batalkan_terakhir,
-                use_container_width=True
-            )
-
+        # Header tabel
+        h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
+        with h_col0:
+            st.markdown("**Barcode / Kode**")
+        with h_col1:
+            st.markdown("**Nama Barang**")
+        with h_col2:
+            st.markdown("**Jumlah (Qty)**")
+        with h_col3:
+            st.markdown("**Subtotal**")
+        with h_col4:
+            st.markdown("**Aksi**")
         st.markdown("---")
 
-        # ================= KERANJANG & NOTA =================
-        if len(st.session_state.keranjang) > 0:
-            st.subheader("🛒 Daftar Belanjaan")
-            st.info("💡 Kolom **Barcode/Kode** kini ada di sebelah kiri sebelum nama barang.")
-            
-            # Header kolom tabel keranjang (No/Barcode, Nama Barang, Qty, Subtotal, Aksi)
-            h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.5, 3, 2, 2, 1])
-            with h_col0:
-                st.markdown("**Barcode / Kode**")
-            with h_col1:
-                st.markdown("**Nama Barang**")
-            with h_col2:
-                st.markdown("**Jumlah (Qty)**")
-            with h_col3:
-                st.markdown("**Subtotal**")
-            with h_col4:
-                st.markdown("**Aksi**")
+        # Baris item keranjang
+        for idx, item in enumerate(st.session_state.keranjang):
+            row_c0, row_c1, row_c2, row_c3, row_c4 = st.columns([1.8, 3, 2, 2, 1])
+            with row_c0:
+                st.text_input(
+                    "Barcode",
+                    value=item.get("Barcode", ""),
+                    key=f"input_bc_{idx}_{st.session_state.editor_counter}",
+                    placeholder="Ketik/Scan...",
+                    label_visibility="collapsed",
+                    on_change=proses_input_barcode,
+                    args=(idx, st.session_state.get(f"input_bc_{idx}_{st.session_state.editor_counter}", ""), kolom_harga_pilihan)
+                )
+            with row_c1:
+                st.markdown(f"**{idx + 1}. {item['Nama Barang']}**<br><span style='color:gray; font-size:14px;'>@ Rp {rp(item['Harga Satuan'])}</span>", unsafe_allow_html=True)
+            with row_c2:
+                sub_q1, sub_q2, sub_q3 = st.columns([1, 1, 1])
+                with sub_q1:
+                    if st.button("➖", key=f"min_{idx}", use_container_width=True):
+                        ubah_qty_langsung(idx, -1)
+                        st.rerun()
+                with sub_q2:
+                    st.markdown(f"<div style='text-align: center; font-weight: bold; padding-top: 5px;'>{item['Qty']}</div>", unsafe_allow_html=True)
+                with sub_q3:
+                    if st.button("➕", key=f"plus_{idx}", use_container_width=True):
+                        ubah_qty_langsung(idx, 1)
+                        st.rerun()
+            with row_c3:
+                st.markdown(f"**Rp {rp(item['Subtotal'])}**")
+            with row_c4:
+                if st.button("🗑️", key=f"del_{idx}", use_container_width=True):
+                    hapus_item_satuan(idx)
+                    st.rerun()
+
+            # Jika ada dropdown pilihan dari hasil pencarian ganda di baris ini
+            if "_dropdown_pilihan" in item:
+                st.markdown(f"🔽 **Pilih barang untuk baris {idx+1}:**")
+                for p_idx, (p_bcode, p_nm, p_hg) in enumerate(item["_dropdown_pilihan"]):
+                    if st.button(f"👉 [{p_bcode}] {p_nm} - Rp {rp(p_hg)}", key=f"drop_{idx}_{p_idx}", use_container_width=True):
+                        pilih_dari_dropdown(idx, p_bcode, p_nm, p_hg)
+                        st.rerun()
+
             st.markdown("---")
 
-            # Baris item keranjang
-            for idx, item in enumerate(st.session_state.keranjang):
-                row_c0, row_c1, row_c2, row_c3, row_c4 = st.columns([1.5, 3, 2, 2, 1])
-                with row_c0:
-                    st.markdown(f"<span style='color:gray; font-size:15px;'>{item.get('Barcode', '-')}</span>", unsafe_allow_html=True)
-                with row_c1:
-                    st.markdown(f"**{idx + 1}. {item['Nama Barang']}**<br><span style='color:gray; font-size:14px;'>@ Rp {rp(item['Harga Satuan'])}</span>", unsafe_allow_html=True)
-                with row_c2:
-                    sub_q1, sub_q2, sub_q3 = st.columns([1, 1, 1])
-                    with sub_q1:
-                        if st.button("➖", key=f"min_{idx}", use_container_width=True):
-                            ubah_qty_langsung(idx, -1)
-                            st.rerun()
-                    with sub_q2:
-                        st.markdown(f"<div style='text-align: center; font-weight: bold; padding-top: 5px;'>{item['Qty']}</div>", unsafe_allow_html=True)
-                    with sub_q3:
-                        if st.button("➕", key=f"plus_{idx}", use_container_width=True):
-                            ubah_qty_langsung(idx, 1)
-                            st.rerun()
-                with row_c3:
-                    st.markdown(f"**Rp {rp(item['Subtotal'])}**")
-                with row_c4:
-                    if st.button("🗑️", key=f"del_{idx}", use_container_width=True):
-                        hapus_item_satuan(idx)
-                        st.rerun()
-                st.markdown("---")
+        col_tambah_baris, col_batal_aksi = st.columns(2)
+        with col_tambah_baris:
+            st.button("➕ Tambah Baris Belanja Baru", on_click=tambah_baris_kosong, use_container_width=True)
+        with col_batal_aksi:
+            if st.session_state.riwayat:
+                st.button("↩️ Batalkan Perubahan Terakhir", on_click=batalkan_terakhir, use_container_width=True)
 
-            df_keranjang = pd.DataFrame(st.session_state.keranjang)
-            subtotal_barang = int(df_keranjang["Subtotal"].sum())
+        if len(st.session_state.keranjang) > 0 and any(item["Harga Satuan"] > 0 for item in st.session_state.keranjang):
+            df_keranjang = pd.DataFrame([i for i in st.session_state.keranjang if i["Harga Satuan"] > 0])
+            subtotal_barang = int(df_keranjang["Subtotal"].sum()) if not df_keranjang.empty else 0
 
             st.markdown("### 💰 Rincian Biaya Tambahan")
             col_dk1, col_dk2, col_dk3 = st.columns(3)
@@ -743,7 +759,8 @@ else:
             add_line(f"Kepada : {nama_pembeli}")
             add_line("-" * printer_width, ALIGN_CENTER)
 
-            for item in st.session_state.keranjang:
+            item_valid = [it for it in st.session_state.keranjang if it["Harga Satuan"] > 0]
+            for item in item_valid:
                 add_line(item["Nama Barang"], bold=True)
                 add_line(baris_kiri_kanan(f"{rp(item['Harga Satuan'])} x {item['Qty']} item", rp(item["Subtotal"])))
                 add_line("")
@@ -772,7 +789,7 @@ else:
                 f"Kepada : {nama_pembeli}\n"
                 "----------------------------------\n"
             )
-            for item in st.session_state.keranjang:
+            for item in item_valid:
                 pesan_wa += (
                     f"• {item['Nama Barang']}\n"
                     f"  {rp(item['Harga Satuan'])} x {item['Qty']} = *Rp {rp(item['Subtotal'])}*\n\n"
@@ -803,5 +820,3 @@ else:
     </a>
 </div>
 """, unsafe_allow_html=True)
-        else:
-            st.info("🛒 Keranjang belanja masih kosong. Silakan ketik nama barang atau scan di atas untuk mulai.")
