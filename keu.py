@@ -156,40 +156,37 @@ async function cariKarakteristik(server) {
   return null;
 }
 
-// Variabel global untuk menyimpan perangkat yang aktif di sesi browser saat ini
-let cachedDevice = null;
-
 async function sambungkan() {
-  let server = null;
-
-  // 1. Coba gunakan perangkat di memori sesi aktif jika ada
-  if (cachedDevice && cachedDevice.gatt.connected) {
-    return { device: cachedDevice, ch: await cariKarakteristik(cachedDevice.gatt) };
-  }
-
-  // 2. Coba ambil dari riwayat perangkat yang diizinkan browser
+  let device = null, server = null;
+  
   if (navigator.bluetooth.getDevices) {
     try {
-      const daftar = await navigator.bluetooth.getDevices();
-      if (daftar && daftar.length > 0) {
-        cachedDevice = daftar[0];
-        setStatus("Menghubungkan ke printer tersimpan...");
-        server = await cachedDevice.gatt.connect();
-        const ch = await cariKarakteristik(server);
-        if (ch) return { device: cachedDevice, ch: ch };
+      let idTersimpan = null;
+      try { idTersimpan = localStorage.getItem("kasir_printer_id"); } catch (e) {}
+      
+      if (idTersimpan) {
+        const daftar = await navigator.bluetooth.getDevices();
+        device = daftar.find((d) => d.id === idTersimpan) || null;
+        if (device) {
+          setStatus("Menyambungkan ke printer tersimpan...");
+          server = await device.gatt.connect();
+        }
       }
-    } catch (e) {}
+    } catch (e) { device = null; server = null; }
   }
 
-  // 3. Jika belum pernah atau memori bersih, tampilkan kotak pilih perangkat (hanya sekali)
-  setStatus("Pilih printer Bluetooth Anda...");
-  cachedDevice = await navigator.bluetooth.requestDevice({
-    acceptAllDevices: true,
-    optionalServices: SERVICES
-  });
-  server = await cachedDevice.gatt.connect();
+  if (!server) {
+    setStatus("Pilih printer Bluetooth Anda...");
+    device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: SERVICES
+    });
+    server = await device.gatt.connect();
+    try { localStorage.setItem("kasir_printer_id", device.id); } catch (e) {}
+  }
+
   const ch = await cariKarakteristik(server);
-  return { device: cachedDevice, ch: ch };
+  return { device, server, ch };
 }
 
 async function cetak() {
@@ -201,16 +198,15 @@ async function cetak() {
       return;
     }
     
-    setStatus("Menghubungkan...");
     const hasil = await sambungkan();
-    if (!hasil || !hasil.ch) {
+    device = hasil.device;
+    if (!hasil.ch) {
       setStatus("❌ Jalur cetak printer tidak dikenali.");
+      try { device.gatt.disconnect(); } catch (e) {}
       return;
     }
     
-    device = hasil.device;
     const ch = hasil.ch;
-    
     setStatus("Sedang mencetak...");
     const data = bytesDariB64(DATA_B64);
     for (let i = 0; i < data.length; i += CHUNK) {
@@ -224,18 +220,15 @@ async function cetak() {
       await sleep(DELAY);
     }
     setStatus("✅ Berhasil dicetak!");
+    setTimeout(() => { try { device.gatt.disconnect(); } catch (e) {} }, 1500);
   } catch (e) {
-    cachedDevice = resetDeviceCache();
-    setStatus("❌ Gagal. Pastikan printer menyala & klik cetak ulang.");
+    try { localStorage.removeItem("kasir_printer_id"); } catch (x) {}
+    setStatus("❌ Gagal menyambung. Pastikan printer menyala.");
+    try { if (device) device.gatt.disconnect(); } catch (x) {}
   } finally {
     btn.disabled = false;
   }
 }
-
-function resetDeviceCache() {
-  return null;
-}
-
 if (btn) btn.addEventListener("click", cetak);
 </script>
 """
@@ -702,8 +695,8 @@ else:
             if st.session_state.riwayat:
                 st.button("↩️ Batalkan Perubahan Terakhir", on_click=batalkan_terakhir, use_container_width=True)
 
-        if len(st.session_state.keranjang) > 0:
-            df_keranjang = pd.DataFrame(st.session_state.keranjang)
+        if len(st.session_state.keranjang) > 0 and any(item["Harga Satuan"] > 0 for item in st.session_state.keranjang):
+            df_keranjang = pd.DataFrame([i for i in st.session_state.keranjang if i["Harga Satuan"] > 0])
             subtotal_barang = int(df_keranjang["Subtotal"].sum()) if not df_keranjang.empty else 0
 
             st.markdown("### 💰 Rincian Biaya Tambahan")
@@ -726,7 +719,7 @@ else:
                 nama_pembeli = st.text_input("Nama Pelanggan", value="Pelanggan Umum", key="nama_pelanggan_input")
             with col_aksi2:
                 uang_tunai = st.number_input(
-                    "Uang Diterima dari Pembeli (Rp)", min_value=0, value=max(total_belanja_semua, 0), step=5000, key=f"uang_tunai_{total_belanja_semua}"
+                    "Uang Diterima dari Pembeli (Rp)", min_value=0, value=total_belanja_semua, step=5000, key=f"uang_tunai_{total_belanja_semua}"
                 )
 
             uang_kembalian = uang_tunai - total_belanja_semua
@@ -849,7 +842,7 @@ else:
             with col_wa:
                 st.markdown(f"""
 <div style="text-align: center;">
-    <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 14px 20px; text-type: none; text-decoration: none; font-size: 18px; border-radius: 12px; font-weight: bold; display: block; margin-top: 2px;">
+    <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 14px 20px; text-decoration: none; font-size: 18px; border-radius: 12px; font-weight: bold; display: block; margin-top: 2px;">
         💬 Kirim via WhatsApp
     </a>
 </div>
