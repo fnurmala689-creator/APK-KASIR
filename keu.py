@@ -156,25 +156,32 @@ async function cariKarakteristik(server) {
   return null;
 }
 
+// Variabel global untuk menyimpan perangkat yang aktif di sesi browser saat ini
 let cachedDevice = null;
 
 async function sambungkan() {
   let server = null;
+
+  // 1. Coba gunakan perangkat di memori sesi aktif jika ada
   if (cachedDevice && cachedDevice.gatt.connected) {
     return { device: cachedDevice, ch: await cariKarakteristik(cachedDevice.gatt) };
   }
+
+  // 2. Coba ambil dari riwayat perangkat yang diizinkan browser
   if (navigator.bluetooth.getDevices) {
     try {
       const daftar = await navigator.bluetooth.getDevices();
       if (daftar && daftar.length > 0) {
         cachedDevice = daftar[0];
-        setStatus("Menghubungkan ke printer...");
+        setStatus("Menghubungkan ke printer tersimpan...");
         server = await cachedDevice.gatt.connect();
         const ch = await cariKarakteristik(server);
         if (ch) return { device: cachedDevice, ch: ch };
       }
     } catch (e) {}
   }
+
+  // 3. Jika belum pernah atau memori bersih, tampilkan kotak pilih perangkat (hanya sekali)
   setStatus("Pilih printer Bluetooth Anda...");
   cachedDevice = await navigator.bluetooth.requestDevice({
     acceptAllDevices: true,
@@ -193,14 +200,17 @@ async function cetak() {
       setStatus("❌ Browser tidak mendukung Bluetooth.");
       return;
     }
+    
     setStatus("Menghubungkan...");
     const hasil = await sambungkan();
     if (!hasil || !hasil.ch) {
       setStatus("❌ Jalur cetak printer tidak dikenali.");
       return;
     }
+    
     device = hasil.device;
     const ch = hasil.ch;
+    
     setStatus("Sedang mencetak...");
     const data = bytesDariB64(DATA_B64);
     for (let i = 0; i < data.length; i += CHUNK) {
@@ -215,12 +225,17 @@ async function cetak() {
     }
     setStatus("✅ Berhasil dicetak!");
   } catch (e) {
-    cachedDevice = null;
+    cachedDevice = resetDeviceCache();
     setStatus("❌ Gagal. Pastikan printer menyala & klik cetak ulang.");
   } finally {
     btn.disabled = false;
   }
 }
+
+function resetDeviceCache() {
+  return null;
+}
+
 if (btn) btn.addEventListener("click", cetak);
 </script>
 """
@@ -243,7 +258,6 @@ if kolom_barcode:
 defaults = {
     "menu_aktif": None,
     "keranjang": [],
-    "daftar_pending": [],
     "scan_counter_db": 0,
     "scan_counter_tambah": 0,
     "scan_counter_kasir_aktif": None,
@@ -293,7 +307,7 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
             "Nama Barang": nm,
             "Qty": 1,
             "Harga Satuan": hg,
-            "Subtotal": hg * 1,
+            "Subtotal": hg,
         }
         st.session_state.pesan = ("success", f"✅ Memuat: **{nm}** (Rp {rp(hg)})")
     else:
@@ -316,7 +330,7 @@ def pilih_dari_dropdown(idx_baris, bcode, nm, hg):
         "Nama Barang": nm,
         "Qty": 1,
         "Harga Satuan": hg,
-        "Subtotal": hg * 1,
+        "Subtotal": hg,
     }
     if "_dropdown_pilihan" in st.session_state.keranjang[idx_baris]:
         del st.session_state.keranjang[idx_baris]["_dropdown_pilihan"]
@@ -344,7 +358,7 @@ def ubah_qty_langsung(index_item, delta):
         if item["Qty"] <= 0:
             st.session_state.keranjang.pop(index_item)
         else:
-            item["Subtotal"] = int(item["Qty"]) * int(item["Harga Satuan"])
+            item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
         st.session_state.editor_counter += 1
 
 
@@ -598,10 +612,6 @@ else:
             label_visibility="collapsed"
         )
 
-        kolom_harga_pilihan = f"Harga {jenis_pelanggan}"
-        if kolom_harga_pilihan not in df_produk.columns:
-            kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
-
         # --- BAGIAN PENDING NOTA / DAFTAR TUNGGU ---
         if st.session_state.daftar_pending:
             with st.expander(f"⏸️ Daftar Nota Pending ({len(st.session_state.daftar_pending)} Nota Tertunda)", expanded=False):
@@ -618,6 +628,12 @@ else:
                             hapus_pending(p_idx)
                             st.rerun()
             st.markdown("---")
+
+        st.markdown("---")
+
+        kolom_harga_pilihan = f"Harga {jenis_pelanggan}"
+        if kolom_harga_pilihan not in df_produk.columns:
+            kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
 
         st.markdown("---")
 
@@ -675,9 +691,6 @@ else:
         st.markdown("---")
 
         for idx, item in enumerate(st.session_state.keranjang):
-            # Pastikan subtotal selalu diperbarui secara instan dari Qty * Harga Satuan
-            item["Subtotal"] = int(item.get("Qty", 1)) * int(item.get("Harga Satuan", 0))
-
             row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
             with row_c0:
                 val_bc = item.get("Barcode", "")
@@ -743,8 +756,8 @@ else:
                 st.button("↩️ Batalkan Perubahan Terakhir", on_click=batalkan_terakhir, use_container_width=True)
 
         if len(st.session_state.keranjang) > 0:
-            # Kalkulasi total keseluruhan langsung dari subtotal item valid
-            subtotal_barang = sum(int(it.get("Subtotal", 0)) for it in st.session_state.keranjang if it.get("Harga Satuan", 0) > 0)
+            df_keranjang = pd.DataFrame(st.session_state.keranjang)
+            subtotal_barang = int(df_keranjang["Subtotal"].sum()) if not df_keranjang.empty else 0
 
             st.markdown("### 💰 Rincian Biaya Tambahan")
             col_dk1, col_dk2, col_dk3 = st.columns(3)
@@ -768,12 +781,6 @@ else:
                 uang_tunai = st.number_input(
                     "Uang Diterima dari Pembeli (Rp)", min_value=0, value=max(total_belanja_semua, 0), step=5000, key=f"uang_tunai_{total_belanja_semua}"
                 )
-
-            # Tombol Pending Nota
-            st.markdown("")
-            if st.button("⏸️ Pending Nota Ini (Simpan Sementara)", type="primary", use_container_width=True):
-                simpan_pending(nama_pembeli)
-                st.rerun()
 
             uang_kembalian = uang_tunai - total_belanja_semua
             if uang_kembalian >= 0:
