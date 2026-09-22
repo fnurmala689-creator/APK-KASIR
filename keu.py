@@ -440,6 +440,21 @@ def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
 st.title("😊 TOKO JABON KIDUL SEPUR")
 st.markdown("### 🙏 Don't Forget to Pray")
 
+# Cek parameter query untuk menangkap hasil kiriman dari komponen HTML kasir
+query_params = st.query_params
+if "scan_val" in query_params and "scan_idx" in query_params:
+    try:
+        s_idx = int(query_params["scan_idx"])
+        s_val = str(query_params["scan_val"])
+        st.query_params.clear()
+        kol_harga_temp = f"Harga {st.session_state.get('pilih_level_harga', 'Umum')}"
+        if kol_harga_temp not in df_produk.columns:
+            kol_harga_temp = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
+        proses_input_barcode(s_idx, s_val, kol_harga_temp)
+        st.rerun()
+    except Exception:
+        st.query_params.clear()
+
 # JIKA BELUM ADA MENU -> TAMPILKAN 3 BUBBLE TOMBOL UTAMA
 if st.session_state.menu_aktif is None:
     st.markdown("---")
@@ -630,29 +645,22 @@ else:
             with row_c0:
                 val_bc = item.get("Barcode", "")
                 
-                # Komponen HTML dengan penanganan event Enter/Scanner fisik
+                # Komponen HTML murni tanpa tombol submit / kotak input tambahan di bawahnya
                 components.html(f"""
                 <div style="margin: 0px; padding: 0px; font-family: sans-serif;">
                   <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Ketik/Scan..." 
                          list="list_produk_{idx}" 
                          style="width: 100%; padding: 8px 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
                          onkeydown="if(event.key === 'Enter') {{ 
-                             parent.document.getElementById('val_{idx}').value = this.value;
-                             parent.document.getElementById('hidden_submit_{idx}').click(); 
+                             const val = encodeURIComponent(this.value);
+                             window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + val;
                          }}"
-                         oninput="parent.document.getElementById('val_{idx}').value = this.value;"
-                         onchange="parent.document.getElementById('val_{idx}').value = this.value; parent.document.getElementById('hidden_submit_{idx}').click();" />
+                         onchange="const val = encodeURIComponent(this.value); window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + val;" />
                   <datalist id="list_produk_{idx}">
                     {options_html}
                   </datalist>
                 </div>
                 """, height=45)
-                
-                # Hidden input & button untuk sinkronisasi nilai ke Streamlit Python
-                val_terisi = st.text_input("val", value=val_bc, key=f"val_{idx}", label_visibility="collapsed")
-                if st.button("Submit", key=f"hidden_submit_{idx}", help="Enter"):
-                    proses_input_barcode(idx, val_terisi, kolom_harga_pilihan)
-                    st.rerun()
 
             with row_c0_cam:
                 st.markdown("<div style='margin-top: 2px;'>", unsafe_allow_html=True)
@@ -850,4 +858,6 @@ else:
     </a>
 </div>
 """, unsafe_allow_html=True)
-                
+```eof
+
+Semua kotak input sinkronisasi tambahan dan tombol *submit* telah dibersihkan sepenuhnya. Sekarang kolom input barcode berjalan langsung secara otomatis begitu Anda menekan Enter atau melakukan *scan* via alat tembak fisik.
