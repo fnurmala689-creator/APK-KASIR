@@ -6,6 +6,7 @@ import json
 import requests
 from datetime import datetime
 import urllib.parse
+import streamlit.components.v1 as components
 from streamlit_qrcode_scanner import qrcode_scanner
 
 st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🤞", layout="wide")
@@ -265,23 +266,23 @@ def simpan_riwayat():
     st.session_state.riwayat = st.session_state.riwayat[-20:]
 
 
-def pilih_barang_langsung(idx_baris, selected_val, kolom_harga_pilihan):
-    if not selected_val or selected_val == "-- Pilih / Ketik Barang --":
+def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
+    val = str(input_val).strip()
+    if not val:
         return
 
     simpan_riwayat()
-    # Pisahkan jika formatnya mengandung barcode atau ambil langsung berdasarkan nama/barcode
-    val_bersih = selected_val.split(" | ")[0].replace("[", "").replace("]", "").strip()
-
     df_match = pd.DataFrame()
     if kolom_barcode:
-        df_match = df_produk[df_produk["_kode"] == norm_kode(val_bersih)]
+        df_match = df_produk[df_produk["_kode"] == norm_kode(val)]
     if len(df_match) == 0:
         df_match = df_produk[
-            df_produk[kolom_nama_barang].astype(str).str.contains(val_bersih, case=False, na=False, regex=False)
+            df_produk[kolom_nama_barang].astype(str).str.contains(val, case=False, na=False, regex=False)
         ]
 
-    if len(df_match) > 0:
+    if len(df_match) == 0:
+        st.session_state.pesan = ("warning", f"⚠️ Barang '{val}' tidak ditemukan.")
+    elif len(df_match) == 1:
         row = df_match.iloc[0]
         bcode = str(row[kolom_barcode]).strip() if kolom_barcode else "-"
         nm = str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)"
@@ -298,8 +299,31 @@ def pilih_barang_langsung(idx_baris, selected_val, kolom_harga_pilihan):
         }
         st.session_state.pesan = ("success", f"✅ Memuat: **{nm}** (Rp {rp(hg)})")
     else:
-        st.session_state.pesan = ("warning", f"⚠️ Barang '{selected_val}' tidak ditemukan.")
+        opsi_list = []
+        for _, row in df_match.iterrows():
+            bcode = str(row[kolom_barcode]).strip() if kolom_barcode else "-"
+            nm = str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)"
+            hg = int(row[kolom_harga_pilihan])
+            opsi_list.append((bcode, nm, hg))
+        st.session_state.keranjang[idx_baris]["_dropdown_pilihan"] = opsi_list
+        st.session_state.pesan = ("info", f"Ditemukan beberapa barang untuk '{val}', silakan pilih dari daftar.")
     
+    st.session_state.editor_counter += 1
+
+
+def pilih_dari_dropdown(idx_baris, bcode, nm, hg):
+    simpan_riwayat()
+    q_lama = st.session_state.keranjang[idx_baris].get("Qty", 1)
+    st.session_state.keranjang[idx_baris] = {
+        "Barcode": bcode,
+        "Nama Barang": nm,
+        "Qty": q_lama,
+        "Harga Satuan": hg,
+        "Subtotal": hg * q_lama,
+    }
+    if "_dropdown_pilihan" in st.session_state.keranjang[idx_baris]:
+        del st.session_state.keranjang[idx_baris]["_dropdown_pilihan"]
+    st.session_state.pesan = ("success", f"✅ Dipilih: **{nm}** (Rp {rp(hg)})")
     st.session_state.editor_counter += 1
 
 
@@ -444,6 +468,20 @@ def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
 
 st.title("😊 TOKO JABON KIDUL SEPUR")
 st.markdown("### 🙏 Don't Forget to Pray")
+
+query_params = st.query_params
+if "scan_val" in query_params and "scan_idx" in query_params:
+    try:
+        s_idx = int(query_params["scan_idx"])
+        s_val = str(query_params["scan_val"])
+        st.query_params.clear()
+        kol_harga_temp = f"Harga {st.session_state.get('pilih_level_harga', 'Umum')}"
+        if kol_harga_temp not in df_produk.columns:
+            kol_harga_temp = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
+        proses_input_barcode(s_idx, s_val, kol_harga_temp)
+        st.rerun()
+    except Exception:
+        st.query_params.clear()
 
 if st.session_state.menu_aktif is None:
     st.markdown("---")
@@ -599,7 +637,7 @@ else:
             getattr(st, tipe)(teks)
 
         st.markdown("### 🛒 Daftar Belanjaan")
-        st.info("💡 Pilih dari kotak pencarian produk, gunakan scanner kamera 📷, atau ketik langsung.")
+        st.info("💡 Ketik barcode/nama, pilih dari dropdown, atau klik ikon kamera 📷 untuk scan.")
 
         if st.session_state.scan_counter_kasir_aktif is not None:
             idx_aktif = st.session_state.scan_counter_kasir_aktif
@@ -609,42 +647,25 @@ else:
             if hasil_scan_item:
                 val_hasil = str(hasil_scan_item).strip()
                 st.session_state.scan_counter_kasir_aktif = None
-                # Langsung proses hasil scan
-                df_match_scan = pd.DataFrame()
-                if kolom_barcode:
-                    df_match_scan = df_produk[df_produk["_kode"] == norm_kode(val_hasil)]
-                if len(df_match_scan) == 1:
-                    row = df_match_scan.iloc[0]
-                    bcode = str(row[kolom_barcode]).strip() if kolom_barcode else "-"
-                    nm = str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)"
-                    hg = int(row[kolom_harga_pilihan])
-                    q_lama = st.session_state.keranjang[idx_aktif].get("Qty", 1)
-                    st.session_state.keranjang[idx_aktif] = {
-                        "Barcode": bcode,
-                        "Nama Barang": nm,
-                        "Qty": q_lama,
-                        "Harga Satuan": hg,
-                        "Subtotal": hg * q_lama,
-                    }
-                    st.session_state.pesan = ("success", f"✅ Scan Berhasil: **{nm}**")
-                else:
-                    st.session_state.pesan = ("warning", f"⚠️ Barcode '{val_hasil}' tidak ditemukan.")
+                proses_input_barcode(idx_aktif, val_hasil, kolom_harga_pilihan)
                 st.rerun()
             if st.button("✖️ Tutup Kamera", key="tutup_kamera_kasir"):
                 st.session_state.scan_counter_kasir_aktif = None
                 st.rerun()
             st.markdown(f"---")
 
-        # Buat daftar pilihan produk untuk selectbox interaktif Streamlit
-        list_opsi_produk = ["-- Pilih / Ketik Barang --"]
+        options_html = ""
         for _, row in df_produk.iterrows():
             b_val = str(row[kolom_barcode]).strip() if kolom_barcode else ""
             n_val = str(row[kolom_nama_barang]).strip()
-            list_opsi_produk.append(f"[{b_val}] {n_val}")
+            if b_val:
+                options_html += f'<option value="{b_val}">{n_val}</option>'
+            if n_val:
+                options_html += f'<option value="{n_val}"></option>'
 
-        h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([2.2, 2.5, 1.5, 1.8, 1])
+        h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
         with h_col0:
-            st.markdown("**Cari / Pilih Barang**")
+            st.markdown("**Barcode / Kode**")
         with h_col1:
             st.markdown("**Nama Barang**")
         with h_col2:
@@ -658,17 +679,25 @@ else:
         for idx, item in enumerate(st.session_state.keranjang):
             item["Subtotal"] = int(item.get("Qty", 1)) * int(item.get("Harga Satuan", 0))
 
-            row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.7, 0.5, 2.5, 1.5, 1.8, 1])
+            row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
             with row_c0:
-                # Gunakan selectbox interaktif yang otomatis mendukung ketik & pilih dropdown
-                pilihan_terpilih = st.selectbox(
-                    f"Pilih baris {idx+1}",
-                    options=list_opsi_produk,
-                    key=f"select_prod_{idx}_{st.session_state.editor_counter}",
-                    label_visibility="collapsed",
-                    on_change=pilih_barang_langsung,
-                    args=(idx, st.session_state.get(f"select_prod_{idx}_{st.session_state.editor_counter}"), kolom_harga_pilihan)
-                )
+                val_bc = item.get("Barcode", "")
+                
+                components.html(f"""
+                <div style="margin: 0px; padding: 0px; font-family: sans-serif;">
+                  <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Ketik/Scan..." 
+                         list="list_produk_{idx}" 
+                         style="width: 100%; padding: 8px 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
+                         onkeydown="if(event.key === 'Enter') {{ 
+                             const val = encodeURIComponent(this.value);
+                             window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + val;
+                         }}"
+                         onchange="const val = encodeURIComponent(this.value); window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + val;" />
+                  <datalist id="list_produk_{idx}">
+                    {options_html}
+                  </datalist>
+                </div>
+                """, height=45)
 
             with row_c0_cam:
                 st.markdown("<div style='margin-top: 2px;'>", unsafe_allow_html=True)
@@ -697,6 +726,13 @@ else:
                 if st.button("🗑️", key=f"del_{idx}", use_container_width=True):
                     hapus_item_satuan(idx)
                     st.rerun()
+
+            if "_dropdown_pilihan" in item:
+                st.markdown(f"🔽 **Pilih barang untuk baris {idx+1}:**")
+                for p_idx, (p_bcode, p_nm, p_hg) in enumerate(item["_dropdown_pilihan"]):
+                    if st.button(f"👉 [{p_bcode}] {p_nm} - Rp {rp(p_hg)}", key=f"drop_{idx}_{p_idx}", use_container_width=True):
+                        pilih_dari_dropdown(idx, p_bcode, p_nm, p_hg)
+                        st.rerun()
 
             st.markdown("---")
 
