@@ -293,7 +293,7 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
             "Nama Barang": nm,
             "Qty": 1,
             "Harga Satuan": hg,
-            "Subtotal": hg,
+            "Subtotal": hg * 1,
         }
         st.session_state.pesan = ("success", f"✅ Memuat: **{nm}** (Rp {rp(hg)})")
     else:
@@ -316,7 +316,7 @@ def pilih_dari_dropdown(idx_baris, bcode, nm, hg):
         "Nama Barang": nm,
         "Qty": 1,
         "Harga Satuan": hg,
-        "Subtotal": hg,
+        "Subtotal": hg * 1,
     }
     if "_dropdown_pilihan" in st.session_state.keranjang[idx_baris]:
         del st.session_state.keranjang[idx_baris]["_dropdown_pilihan"]
@@ -675,6 +675,9 @@ else:
         st.markdown("---")
 
         for idx, item in enumerate(st.session_state.keranjang):
+            # Pastikan subtotal selalu diperbarui secara instan dari Qty * Harga Satuan
+            item["Subtotal"] = int(item.get("Qty", 1)) * int(item.get("Harga Satuan", 0))
+
             row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
             with row_c0:
                 val_bc = item.get("Barcode", "")
@@ -717,8 +720,6 @@ else:
                         ubah_qty_langsung(idx, 1)
                         st.rerun()
             with row_c3:
-                # Memastikan subtotal selalu dihitung ulang dari Qty * Harga Satuan
-                item["Subtotal"] = int(item["Qty"]) * int(item["Harga Satuan"])
                 st.markdown(f"**Rp {rp(item['Subtotal'])}**")
             with row_c4:
                 if st.button("🗑️", key=f"del_{idx}", use_container_width=True):
@@ -742,8 +743,8 @@ else:
                 st.button("↩️ Batalkan Perubahan Terakhir", on_click=batalkan_terakhir, use_container_width=True)
 
         if len(st.session_state.keranjang) > 0:
-            df_keranjang = pd.DataFrame(st.session_state.keranjang)
-            subtotal_barang = int(df_keranjang["Subtotal"].sum()) if not df_keranjang.empty else 0
+            # Kalkulasi total keseluruhan langsung dari subtotal item valid
+            subtotal_barang = sum(int(it.get("Subtotal", 0)) for it in st.session_state.keranjang if it.get("Harga Satuan", 0) > 0)
 
             st.markdown("### 💰 Rincian Biaya Tambahan")
             col_dk1, col_dk2, col_dk3 = st.columns(3)
