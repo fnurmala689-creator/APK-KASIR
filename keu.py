@@ -288,7 +288,6 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
         nm = str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)"
         hg = int(row[kolom_harga_pilihan])
         
-        # Ambil Qty saat ini jika baris sudah ada, default 1
         q_lama = st.session_state.keranjang[idx_baris].get("Qty", 1)
         
         st.session_state.keranjang[idx_baris] = {
@@ -312,7 +311,7 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
     st.session_state.editor_counter += 1
 
 
-def pilih_dari_dropdown(idx_baris, bcode, nm, hg):
+def pilih_from_dropdown_index(idx_baris, bcode, nm, hg):
     simpan_riwayat()
     q_lama = st.session_state.keranjang[idx_baris].get("Qty", 1)
     st.session_state.keranjang[idx_baris] = {
@@ -638,7 +637,7 @@ else:
             getattr(st, tipe)(teks)
 
         st.markdown("### 🛒 Daftar Belanjaan")
-        st.info("💡 Ketik nama barang/barcode, tembak scanner fisik, atau klik ikon kamera 📷 untuk scan.")
+        st.info("💡 Ketik nama barang/barcode, tembak scanner fisik, pilih dari dropdown, atau klik ikon kamera 📷 untuk scan.")
 
         if st.session_state.scan_counter_kasir_aktif is not None:
             idx_aktif = st.session_state.scan_counter_kasir_aktif
@@ -655,14 +654,15 @@ else:
                 st.rerun()
             st.markdown(f"---")
 
+        # Membuat opsi HTML datalist dengan format nilai gabungan barcode/nama agar mudah mendeteksi pilihan dropdown
         options_html = ""
         for _, row in df_produk.iterrows():
             b_val = str(row[kolom_barcode]).strip() if kolom_barcode else ""
             n_val = str(row[kolom_nama_barang]).strip()
-            if b_val:
-                options_html += f'<option value="{b_val}">{n_val}</option>'
             if n_val:
                 options_html += f'<option value="{n_val}"></option>'
+            if b_val:
+                options_html += f'<option value="{b_val}"></option>'
 
         h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
         with h_col0:
@@ -678,13 +678,15 @@ else:
         st.markdown("---")
 
         for idx, item in enumerate(st.session_state.keranjang):
-            # Pastikan subtotal selalu diperbarui otomatis setiap render
             item["Subtotal"] = int(item.get("Qty", 1)) * int(item.get("Harga Satuan", 0))
 
             row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
             with row_c0:
                 val_bc = item.get("Barcode", "")
+                if not val_bc or val_bc == "-":
+                    val_bc = item.get("Nama Barang", "") if item.get("Nama Barang") != "Ketik barcode atau nama barang..." else ""
                 
+                # Komponen input HTML yang mendeteksi perubahan onchange dan Enter secara instan
                 components.html(f"""
                 <div style="margin: 0px; padding: 0px; font-family: sans-serif;">
                   <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Ketik/Scan..." 
@@ -733,7 +735,7 @@ else:
                 st.markdown(f"🔽 **Pilih barang untuk baris {idx+1}:**")
                 for p_idx, (p_bcode, p_nm, p_hg) in enumerate(item["_dropdown_pilihan"]):
                     if st.button(f"👉 [{p_bcode}] {p_nm} - Rp {rp(p_hg)}", key=f"drop_{idx}_{p_idx}", use_container_width=True):
-                        pilih_dari_dropdown(idx, p_bcode, p_nm, p_hg)
+                        pilih_from_dropdown_index(idx, p_bcode, p_nm, p_hg)
                         st.rerun()
 
             st.markdown("---")
