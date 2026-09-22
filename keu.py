@@ -243,7 +243,7 @@ if kolom_barcode:
 defaults = {
     "menu_aktif": None,
     "keranjang": [],
-    "daftar_pending": [],  # Menyimpan daftar nota pending
+    "daftar_pending": [],
     "scan_counter_db": 0,
     "scan_counter_tambah": 0,
     "scan_counter_kasir_aktif": None,
@@ -344,7 +344,7 @@ def ubah_qty_langsung(index_item, delta):
         if item["Qty"] <= 0:
             st.session_state.keranjang.pop(index_item)
         else:
-            item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
+            item["Subtotal"] = int(item["Qty"]) * int(item["Harga Satuan"])
         st.session_state.editor_counter += 1
 
 
@@ -717,6 +717,8 @@ else:
                         ubah_qty_langsung(idx, 1)
                         st.rerun()
             with row_c3:
+                # Memastikan subtotal selalu dihitung ulang dari Qty * Harga Satuan
+                item["Subtotal"] = int(item["Qty"]) * int(item["Harga Satuan"])
                 st.markdown(f"**Rp {rp(item['Subtotal'])}**")
             with row_c4:
                 if st.button("🗑️", key=f"del_{idx}", use_container_width=True):
