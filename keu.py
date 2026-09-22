@@ -250,6 +250,7 @@ defaults = {
     "keranjang": [],
     "scan_counter_db": 0,
     "scan_counter_tambah": 0,
+    "scan_counter_kasir_aktif": None,
     "tambah_barcode": "",
     "tambah_nama": "",
     "tambah_riwayat": [],
@@ -581,7 +582,23 @@ else:
             getattr(st, tipe)(teks)
 
         st.markdown("### 🛒 Daftar Belanjaan")
-        st.info("💡 Ketik nama barang/barcode atau gunakan alat scan/tembak barcode. Pilih dari dropdown atau tekan Enter untuk memproses.")
+        st.info("💡 Ketik nama barang/barcode, tembak scanner fisik, atau klik ikon kamera 📷 untuk scan.")
+
+        # Jika ada salah satu baris kasir yang mengaktifkan kamera
+        if st.session_state.scan_counter_kasir_aktif is not None:
+            idx_aktif = st.session_state.scan_counter_kasir_aktif
+            st.markdown(f"---")
+            st.warning(f"📷 **Kamera Aktif untuk Baris #{idx_aktif + 1}**")
+            hasil_scan_item = qrcode_scanner(key=f"scanner_kasir_{idx_aktif}_{st.session_state.editor_counter}")
+            if hasil_scan_item:
+                val_hasil = str(hasil_scan_item).strip()
+                st.session_state.scan_counter_kasir_aktif = None
+                proses_input_barcode(idx_aktif, val_hasil, kolom_harga_pilihan)
+                st.rerun()
+            if st.button("✖️ Tutup Kamera", key="tutup_kamera_kasir"):
+                st.session_state.scan_counter_kasir_aktif = None
+                st.rerun()
+            st.markdown(f"---")
 
         # Siapkan string opsi HTML untuk datalist
         options_html = ""
@@ -609,11 +626,11 @@ else:
 
         # Baris item keranjang
         for idx, item in enumerate(st.session_state.keranjang):
-            row_c0, row_c1, row_c2, row_c3, row_c4 = st.columns([1.8, 3, 2, 2, 1])
+            row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
             with row_c0:
                 val_bc = item.get("Barcode", "")
                 
-                # Komponen HTML dengan penanganan event Enter/Scanner fisik dan klik dropdown yang dioptimalkan
+                # Komponen HTML dengan penanganan event Enter/Scanner fisik
                 components.html(f"""
                 <div style="margin: 0px; padding: 0px; font-family: sans-serif;">
                   <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Ketik/Scan..." 
@@ -636,6 +653,13 @@ else:
                 if st.button("Submit", key=f"hidden_submit_{idx}", help="Enter"):
                     proses_input_barcode(idx, val_terisi, kolom_harga_pilihan)
                     st.rerun()
+
+            with row_c0_cam:
+                st.markdown("<div style='margin-top: 2px;'>", unsafe_allow_html=True)
+                if st.button("📷", key=f"btn_cam_{idx}", help="Scan Kamera"):
+                    st.session_state.scan_counter_kasir_aktif = idx
+                    st.rerun()
+                st.markdown("</div>", unsafe_allow_html=True)
 
             with row_c1:
                 st.markdown(f"**{idx + 1}. {item['Nama Barang']}**<br><span style='color:gray; font-size:14px;'>@ Rp {rp(item['Harga Satuan'])}</span>", unsafe_allow_html=True)
@@ -826,3 +850,4 @@ else:
     </a>
 </div>
 """, unsafe_allow_html=True)
+                
