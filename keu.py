@@ -110,11 +110,17 @@ def rp(angka):
 
 HTML_CETAK_BLE = """
 <div style="font-family: sans-serif; margin: 0; padding: 0;">
-  <button id="btn" style="width:100%; padding:14px; font-size:18px; font-weight:bold;
-          border-radius:12px; border:2px solid #28a745; background:#28a745; color:#ffffff; cursor:pointer;">
-    🖨️ Cetak Struk via Bluetooth
-  </button>
-  <div id="status" style="font-size:14px; color:#333; margin-top:6px; min-height:20px; font-weight:bold;"></div>
+  <div style="display: flex; gap: 8px; margin-bottom: 6px;">
+    <button id="btnPair" style="flex: 1; padding: 12px; font-size: 15px; font-weight: bold;
+            border-radius: 10px; border: 2px solid #007bff; background: #007bff; color: #ffffff; cursor: pointer;">
+      🔗 Pilih Printer (1x Saja)
+    </button>
+    <button id="btnPrint" style="flex: 1; padding: 12px; font-size: 15px; font-weight: bold;
+            border-radius: 10px; border: 2px solid #28a745; background: #28a745; color: #ffffff; cursor: pointer;">
+      🖨️ Cetak Struk
+    </button>
+  </div>
+  <div id="status" style="font-size: 13px; color: #333; min-height: 18px; font-weight: bold;"></div>
 </div>
 <script>
 const DATA_B64 = "__DATA__";
@@ -131,7 +137,9 @@ const SERVICES = [
   "0000ae30-0000-1000-8000-00805f9b34fb",
   "0000ff80-0000-1000-8000-00805f9b34fb"
 ];
-const btn = document.getElementById("btn");
+
+const btnPair = document.getElementById("btnPair");
+const btnPrint = document.getElementById("btnPrint");
 const statusEl = document.getElementById("status");
 function setStatus(t) { statusEl.textContent = t; }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -156,41 +164,52 @@ async function cariKarakteristik(server) {
   return null;
 }
 
+async function pilihPerangkatBaru() {
+  try {
+    if (!navigator.bluetooth) {
+      setStatus("❌ Browser tidak mendukung Bluetooth.");
+      return;
+    }
+    setStatus("Memilih perangkat...");
+    const device = await navigator.bluetooth.requestDevice({
+      acceptAllDevices: true,
+      optionalServices: SERVICES
+    });
+    
+    localStorage.setItem("kasir_printer_id", device.id);
+    setStatus("✅ Printer berhasil disandingkan! Silakan cetak.");
+  } catch (e) {
+    setStatus("❌ Gagal menyandingkan perangkat.");
+  }
+}
+
 async function sambungkan() {
   let device = null, server = null;
   
   if (navigator.bluetooth.getDevices) {
     try {
-      let idTersimpan = null;
-      try { idTersimpan = localStorage.getItem("kasir_printer_id"); } catch (e) {}
-      
+      let idTersimpan = localStorage.getItem("kasir_printer_id");
       if (idTersimpan) {
         const daftar = await navigator.bluetooth.getDevices();
         device = daftar.find((d) => d.id === idTersimpan) || null;
         if (device) {
-          setStatus("Menyambungkan ke printer tersimpan...");
           server = await device.gatt.connect();
         }
       }
-    } catch (e) { device = null; server = null; }
+    } catch (e) { server = null; }
   }
 
   if (!server) {
-    setStatus("Pilih printer Bluetooth Anda...");
-    device = await navigator.bluetooth.requestDevice({
-      acceptAllDevices: true,
-      optionalServices: SERVICES
-    });
-    server = await device.gatt.connect();
-    try { localStorage.setItem("kasir_printer_id", device.id); } catch (e) {}
+    setStatus("⚠️ Klik 'Pilih Printer (1x Saja)' terlebih dahulu!");
+    return null;
   }
 
   const ch = await cariKarakteristik(server);
-  return { device, server, ch };
+  return { device, ch };
 }
 
 async function cetak() {
-  btn.disabled = true;
+  btnPrint.disabled = true;
   let device = null;
   try {
     if (!navigator.bluetooth) {
@@ -198,15 +217,13 @@ async function cetak() {
       return;
     }
     
+    setStatus("Menghubungkan ke printer...");
     const hasil = await sambungkan();
-    device = hasil.device;
-    if (!hasil.ch) {
-      setStatus("❌ Jalur cetak printer tidak dikenali.");
-      try { device.gatt.disconnect(); } catch (e) {}
-      return;
-    }
+    if (!hasil || !hasil.ch) return;
     
+    device = hasil.device;
     const ch = hasil.ch;
+    
     setStatus("Sedang mencetak...");
     const data = bytesDariB64(DATA_B64);
     for (let i = 0; i < data.length; i += CHUNK) {
@@ -222,14 +239,15 @@ async function cetak() {
     setStatus("✅ Berhasil dicetak!");
     setTimeout(() => { try { device.gatt.disconnect(); } catch (e) {} }, 1500);
   } catch (e) {
-    try { localStorage.removeItem("kasir_printer_id"); } catch (x) {}
-    setStatus("❌ Gagal menyambung. Pastikan printer menyala.");
+    setStatus("❌ Gagal mencetak. Coba klik Pilih Printer.");
     try { if (device) device.gatt.disconnect(); } catch (x) {}
   } finally {
-    btn.disabled = false;
+    btnPrint.disabled = false;
   }
 }
-if (btn) btn.addEventListener("click", cetak);
+
+if (btnPair) btnPair.addEventListener("click", pilihPerangkatBaru);
+if (btnPrint) printBtnListener = btnPrint.addEventListener("click", cetak);
 </script>
 """
 
