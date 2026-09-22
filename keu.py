@@ -581,7 +581,7 @@ else:
             getattr(st, tipe)(teks)
 
         st.markdown("### 🛒 Daftar Belanjaan")
-        st.info("💡 Ketik nama barang atau barcode di kolom **Barcode / Kode**, pilih dari dropdown, dan sistem akan langsung memprosesnya.")
+        st.info("💡 Ketik nama barang/barcode atau gunakan alat scan/tembak barcode. Pilih dari dropdown atau tekan Enter untuk memproses.")
 
         # Siapkan string opsi HTML untuk datalist
         options_html = ""
@@ -613,13 +613,16 @@ else:
             with row_c0:
                 val_bc = item.get("Barcode", "")
                 
-                # Menggabungkan input, datalist, dan event onchange agar langsung otomatis memproses saat diklik/dipilih
+                # Komponen HTML dengan penanganan event Enter/Scanner fisik dan klik dropdown yang dioptimalkan
                 components.html(f"""
                 <div style="margin: 0px; padding: 0px; font-family: sans-serif;">
                   <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Ketik/Scan..." 
                          list="list_produk_{idx}" 
                          style="width: 100%; padding: 8px 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
-                         onkeydown="if(event.key === 'Enter') {{ parent.document.getElementById('hidden_submit_{idx}').click(); }}"
+                         onkeydown="if(event.key === 'Enter') {{ 
+                             parent.document.getElementById('val_{idx}').value = this.value;
+                             parent.document.getElementById('hidden_submit_{idx}').click(); 
+                         }}"
                          oninput="parent.document.getElementById('val_{idx}').value = this.value;"
                          onchange="parent.document.getElementById('val_{idx}').value = this.value; parent.document.getElementById('hidden_submit_{idx}').click();" />
                   <datalist id="list_produk_{idx}">
