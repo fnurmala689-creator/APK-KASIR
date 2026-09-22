@@ -168,7 +168,7 @@ async function sambungkan() {
       const daftar = await navigator.bluetooth.getDevices();
       if (daftar && daftar.length > 0) {
         cachedDevice = daftar[0];
-        setStatus("Menghubungkan ke printer tersimpan...");
+        setStatus("Menghubungkan ke printer...");
         server = await cachedDevice.gatt.connect();
         const ch = await cariKarakteristik(server);
         if (ch) return { device: cachedDevice, ch: ch };
@@ -238,7 +238,7 @@ kolom_barcode_opsi = ["Barcode", "barcode", "SKU", "sku", "Kode", "kode"]
 kolom_barcode = next((c for c in kolom_barcode_opsi if c in df_produk.columns), None)
 
 if kolom_barcode:
-    df_produk["_kode_bersih"] = df_produk[kolom_barcode].astype(str).str.strip().str.lower()
+    df_produk["_kode"] = df_produk[kolom_barcode].map(norm_kode)
 
 defaults = {
     "menu_aktif": None,
@@ -272,14 +272,9 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
         return
 
     simpan_riwayat()
-    val_lower = val.lower()
     df_match = pd.DataFrame()
-
-    # 1. Cari kecocokan langsung pada kolom barcode (bisa berupa nomor barcode atau teks manual yang diketik di kolom barcode spreadsheet)
     if kolom_barcode:
-        df_match = df_produk[df_produk["_kode_bersih"] == val_lower]
-
-    # 2. Jika tidak ketemu persis, cari yang mengandung teks tersebut di kolom barcode atau nama barang
+        df_match = df_produk[df_produk["_kode"] == norm_kode(val)]
     if len(df_match) == 0:
         df_match = df_produk[
             df_produk[kolom_barcode].astype(str).str.contains(val, case=False, na=False, regex=False) |
@@ -294,14 +289,12 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
         nm = str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)"
         hg = int(row[kolom_harga_pilihan])
         
-        q_lama = st.session_state.keranjang[idx_baris].get("Qty", 1)
-        
         st.session_state.keranjang[idx_baris] = {
             "Barcode": bcode,
             "Nama Barang": nm,
-            "Qty": q_lama,
+            "Qty": 1,
             "Harga Satuan": hg,
-            "Subtotal": hg * q_lama,
+            "Subtotal": hg,
         }
         st.session_state.pesan = ("success", f"✅ Memuat: **{nm}** (Rp {rp(hg)})")
     else:
@@ -319,13 +312,12 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
 
 def pilih_dari_dropdown(idx_baris, bcode, nm, hg):
     simpan_riwayat()
-    q_lama = st.session_state.keranjang[idx_baris].get("Qty", 1)
     st.session_state.keranjang[idx_baris] = {
         "Barcode": bcode,
         "Nama Barang": nm,
-        "Qty": q_lama,
+        "Qty": 1,
         "Harga Satuan": hg,
-        "Subtotal": hg * q_lama,
+        "Subtotal": hg,
     }
     if "_dropdown_pilihan" in st.session_state.keranjang[idx_baris]:
         del st.session_state.keranjang[idx_baris]["_dropdown_pilihan"]
@@ -349,8 +341,11 @@ def ubah_qty_langsung(index_item, delta):
     simpan_riwayat()
     if 0 <= index_item < len(st.session_state.keranjang):
         item = st.session_state.keranjang[index_item]
-        item["Qty"] = max(1, item["Qty"] + delta)
-        item["Subtotal"] = int(item["Qty"]) * int(item["Harga Satuan"])
+        item["Qty"] += delta
+        if item["Qty"] <= 0:
+            st.session_state.keranjang.pop(index_item)
+        else:
+            item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
         st.session_state.editor_counter += 1
 
 
@@ -548,12 +543,12 @@ else:
                 st.rerun()
 
         search_database = st.text_input("🔍 Ketik Nama Barang atau Barcode:", placeholder="Contoh: Gula atau Beras", key="search_db")
-        df_tampil = df_produk.drop(columns=["_kode_bersih"], errors="ignore")
+        df_tampil = df_produk.drop(columns="_kode", errors="ignore")
         if search_database:
             kata = search_database.strip()
             mask = df_tampil.astype(str).apply(lambda x: x.str.contains(kata, case=False, na=False, regex=False)).any(axis=1)
-            if "_kode_bersih" in df_produk.columns:
-                mask = mask | (df_produk["_kode_bersih"] == kata.lower())
+            if "_kode" in df_produk.columns:
+                mask = mask | (df_produk["_kode"] == norm_kode(kata))
             df_tampil = df_tampil[mask]
             st.button("✖️ Bersihkan Pencarian", on_click=hapus_pencarian_db)
 
@@ -578,7 +573,7 @@ else:
                     st.session_state.scan_counter_tambah += 1
                     st.rerun()
 
-            st.text_input("Barcode Barang", key="tambah_barcode", placeholder="Scan atau ketik nomor barcode/nama...")
+            st.text_input("Barcode Barang", key="tambah_barcode", placeholder="Scan atau ketik nomor barcode...")
             st.text_input("Nama Barang", key="tambah_nama", placeholder="Ketik nama barang...")
 
             if kolom_harga_list:
@@ -643,7 +638,7 @@ else:
             getattr(st, tipe)(teks)
 
         st.markdown("### 🛒 Daftar Belanjaan")
-        st.info("💡 Ketik kode/nama barang, pilih dari dropdown, atau klik ikon kamera 📷 untuk scan.")
+        st.info("💡 Ketik barcode/nama, pilih dari dropdown, atau klik ikon kamera 📷 untuk scan.")
 
         if st.session_state.scan_counter_kasir_aktif is not None:
             idx_aktif = st.session_state.scan_counter_kasir_aktif
@@ -671,7 +666,7 @@ else:
 
         h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
         with h_col0:
-            st.markdown("**Barcode / Kode / Nama**")
+            st.markdown("**Barcode / Kode**")
         with h_col1:
             st.markdown("**Nama Barang**")
         with h_col2:
@@ -683,8 +678,6 @@ else:
         st.markdown("---")
 
         for idx, item in enumerate(st.session_state.keranjang):
-            item["Subtotal"] = int(item.get("Qty", 1)) * int(item.get("Harga Satuan", 0))
-
             row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
             with row_c0:
                 val_bc = item.get("Barcode", "")
@@ -727,6 +720,7 @@ else:
                         ubah_qty_langsung(idx, 1)
                         st.rerun()
             with row_c3:
+                item["Subtotal"] = int(item["Qty"]) * int(item["Harga Satuan"])
                 st.markdown(f"**Rp {rp(item['Subtotal'])}**")
             with row_c4:
                 if st.button("🗑️", key=f"del_{idx}", use_container_width=True):
@@ -750,7 +744,8 @@ else:
                 st.button("↩️ Batalkan Perubahan Terakhir", on_click=batalkan_terakhir, use_container_width=True)
 
         if len(st.session_state.keranjang) > 0:
-            subtotal_barang = sum(int(it.get("Subtotal", 0)) for it in st.session_state.keranjang)
+            df_keranjang = pd.DataFrame(st.session_state.keranjang)
+            subtotal_barang = int(df_keranjang["Subtotal"].sum()) if not df_keranjang.empty else 0
 
             st.markdown("### 💰 Rincian Biaya Tambahan")
             col_dk1, col_dk2, col_dk3 = st.columns(3)
