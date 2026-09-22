@@ -238,7 +238,7 @@ kolom_barcode_opsi = ["Barcode", "barcode", "SKU", "sku", "Kode", "kode"]
 kolom_barcode = next((c for c in kolom_barcode_opsi if c in df_produk.columns), None)
 
 if kolom_barcode:
-    df_produk["_kode"] = df_produk[kolom_barcode].map(norm_kode)
+    df_produk["_kode_bersih"] = df_produk[kolom_barcode].astype(str).str.strip().str.lower()
 
 defaults = {
     "menu_aktif": None,
@@ -272,11 +272,17 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
         return
 
     simpan_riwayat()
+    val_lower = val.lower()
     df_match = pd.DataFrame()
+
+    # 1. Cari kecocokan langsung pada kolom barcode (bisa berupa nomor barcode atau teks manual yang diketik di kolom barcode spreadsheet)
     if kolom_barcode:
-        df_match = df_produk[df_produk["_kode"] == norm_kode(val)]
+        df_match = df_produk[df_produk["_kode_bersih"] == val_lower]
+
+    # 2. Jika tidak ketemu persis, cari yang mengandung teks tersebut di kolom barcode atau nama barang
     if len(df_match) == 0:
         df_match = df_produk[
+            df_produk[kolom_barcode].astype(str).str.contains(val, case=False, na=False, regex=False) |
             df_produk[kolom_nama_barang].astype(str).str.contains(val, case=False, na=False, regex=False)
         ]
 
@@ -542,12 +548,12 @@ else:
                 st.rerun()
 
         search_database = st.text_input("🔍 Ketik Nama Barang atau Barcode:", placeholder="Contoh: Gula atau Beras", key="search_db")
-        df_tampil = df_produk.drop(columns="_kode", errors="ignore")
+        df_tampil = df_produk.drop(columns=["_kode_bersih"], errors="ignore")
         if search_database:
             kata = search_database.strip()
             mask = df_tampil.astype(str).apply(lambda x: x.str.contains(kata, case=False, na=False, regex=False)).any(axis=1)
-            if "_kode" in df_produk.columns:
-                mask = mask | (df_produk["_kode"] == norm_kode(kata))
+            if "_kode_bersih" in df_produk.columns:
+                mask = mask | (df_produk["_kode_bersih"] == kata.lower())
             df_tampil = df_tampil[mask]
             st.button("✖️ Bersihkan Pencarian", on_click=hapus_pencarian_db)
 
@@ -572,7 +578,7 @@ else:
                     st.session_state.scan_counter_tambah += 1
                     st.rerun()
 
-            st.text_input("Barcode Barang", key="tambah_barcode", placeholder="Scan atau ketik nomor barcode...")
+            st.text_input("Barcode Barang", key="tambah_barcode", placeholder="Scan atau ketik nomor barcode/nama...")
             st.text_input("Nama Barang", key="tambah_nama", placeholder="Ketik nama barang...")
 
             if kolom_harga_list:
@@ -637,7 +643,7 @@ else:
             getattr(st, tipe)(teks)
 
         st.markdown("### 🛒 Daftar Belanjaan")
-        st.info("💡 Ketik barcode/nama, pilih dari dropdown, atau klik ikon kamera 📷 untuk scan.")
+        st.info("💡 Ketik kode/nama barang, pilih dari dropdown, atau klik ikon kamera 📷 untuk scan.")
 
         if st.session_state.scan_counter_kasir_aktif is not None:
             idx_aktif = st.session_state.scan_counter_kasir_aktif
@@ -665,7 +671,7 @@ else:
 
         h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
         with h_col0:
-            st.markdown("**Barcode / Kode**")
+            st.markdown("**Barcode / Kode / Nama**")
         with h_col1:
             st.markdown("**Nama Barang**")
         with h_col2:
