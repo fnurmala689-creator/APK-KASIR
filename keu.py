@@ -26,14 +26,12 @@ st.markdown(
         font-size: 18px !important;
     }
     
-    /* Animasi Melayang Lembut Khusus Menu Utama */
     @keyframes floatBubble {
         0% { transform: translateY(0px) scale(1); }
         50% { transform: translateY(-6px) scale(1.02); }
         100% { transform: translateY(0px) scale(1); }
     }
 
-    /* Kustomisasi Khusus Tombol Menu Utama di Beranda */
     div[data-testid="column"] .menu-btn > button {
         width: 100% !important;
         border-radius: 40px !important;
@@ -65,7 +63,6 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# --- LINK SPREADSHEET PERMANEN ---
 PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
 
 FALLBACK = pd.DataFrame({
@@ -111,9 +108,8 @@ def rp(angka):
     return f"{angka:,.0f}".replace(",", ".")
 
 
-# ============ CETAK BLUETOOTH (BLE) ============
 HTML_CETAK_BLE = """
-<div style="font-family: sans-serif;">
+<div style="font-family: sans-serif; margin: 0; padding: 0;">
   <button id="btn" style="width:100%; padding:14px; font-size:18px; font-weight:bold;
           border-radius:12px; border:2px solid #28a745; background:#28a745; color:#ffffff; cursor:pointer;">
     🖨️ Cetak Struk via Bluetooth
@@ -225,7 +221,7 @@ async function cetak() {
     btn.disabled = false;
   }
 }
-btn.addEventListener("click", cetak);
+if (btn) btn.addEventListener("click", cetak);
 </script>
 """
 
@@ -244,7 +240,6 @@ kolom_barcode = next((c for c in kolom_barcode_opsi if c in df_produk.columns), 
 if kolom_barcode:
     df_produk["_kode"] = df_produk[kolom_barcode].map(norm_kode)
 
-# --- SESSION STATE ---
 defaults = {
     "menu_aktif": None,
     "keranjang": [],
@@ -436,11 +431,9 @@ def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
         st.session_state.pesan_tambah = ("error", f"⚠️ Ditolak: {hasil.get('error', 'kesalahan')}")
 
 
-# ================= TAMPILAN UTAMA =================
 st.title("😊 TOKO JABON KIDUL SEPUR")
 st.markdown("### 🙏 Don't Forget to Pray")
 
-# Cek parameter query untuk menangkap hasil kiriman dari komponen HTML kasir
 query_params = st.query_params
 if "scan_val" in query_params and "scan_idx" in query_params:
     try:
@@ -455,7 +448,6 @@ if "scan_val" in query_params and "scan_idx" in query_params:
     except Exception:
         st.query_params.clear()
 
-# JIKA BELUM ADA MENU -> TAMPILKAN 3 BUBBLE TOMBOL UTAMA
 if st.session_state.menu_aktif is None:
     st.markdown("---")
     st.markdown("### Pilih Menu Gelembung:")
@@ -485,7 +477,6 @@ if st.session_state.menu_aktif is None:
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-# JIKA SUDAH DIPILIH -> MASUK RUANGAN & IKON KECIL DI ATAS
 else:
     st.markdown("---")
     nav1, nav2, nav3, nav_kosong = st.columns([1, 1, 1, 4])
@@ -503,7 +494,6 @@ else:
             st.rerun()
     st.markdown("---")
 
-    # ---------------- RUANGAN 2: CARI HARGA (DATABASE) ----------------
     if st.session_state.menu_aktif == "Database":
         st.subheader("📋 Daftar Barang dan Cek Harga")
         st.info("💡 Gunakan halaman ini untuk mencari tahu harga barang dengan cepat.")
@@ -532,8 +522,6 @@ else:
                 df_tampil[c] = df_tampil[c].map(rp)
         st.dataframe(df_tampil, use_container_width=True)
 
-
-    # ---------------- RUANGAN 3: TAMBAH BARANG ----------------
     elif st.session_state.menu_aktif == "Tambah":
         st.subheader("➕ Tambah Barang Baru")
         kolom_harga_list = [c for c in df_produk.columns if c.lower().startswith("harga")]
@@ -566,8 +554,6 @@ else:
                 tipe_t, teks_t = st.session_state.pesan_tambah
                 getattr(st, tipe_t)(teks_t)
 
-
-    # ---------------- RUANGAN 1: KASIR UTAMA ----------------
     elif st.session_state.menu_aktif == "Kasir":
         st.markdown("### 🏷️ 1. Pilih Jenis Pembeli")
         jenis_pelanggan = st.selectbox(
@@ -599,7 +585,6 @@ else:
         st.markdown("### 🛒 Daftar Belanjaan")
         st.info("💡 Ketik nama barang/barcode, tembak scanner fisik, atau klik ikon kamera 📷 untuk scan.")
 
-        # Jika ada salah satu baris kasir yang mengaktifkan kamera
         if st.session_state.scan_counter_kasir_aktif is not None:
             idx_aktif = st.session_state.scan_counter_kasir_aktif
             st.markdown(f"---")
@@ -615,7 +600,6 @@ else:
                 st.rerun()
             st.markdown(f"---")
 
-        # Siapkan string opsi HTML untuk datalist
         options_html = ""
         for _, row in df_produk.iterrows():
             b_val = str(row[kolom_barcode]).strip() if kolom_barcode else ""
@@ -625,7 +609,6 @@ else:
             if n_val:
                 options_html += f'<option value="{n_val}"></option>'
 
-        # Header tabel
         h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
         with h_col0:
             st.markdown("**Barcode / Kode**")
@@ -639,13 +622,11 @@ else:
             st.markdown("**Aksi**")
         st.markdown("---")
 
-        # Baris item keranjang
         for idx, item in enumerate(st.session_state.keranjang):
             row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
             with row_c0:
                 val_bc = item.get("Barcode", "")
                 
-                # Komponen HTML murni tanpa tombol submit / kotak input tambahan di bawahnya
                 components.html(f"""
                 <div style="margin: 0px; padding: 0px; font-family: sans-serif;">
                   <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Ketik/Scan..." 
@@ -859,5 +840,3 @@ else:
 </div>
 """, unsafe_allow_html=True)
 ```eof
-
-Semua kotak input sinkronisasi tambahan dan tombol *submit* telah dibersihkan sepenuhnya. Sekarang kolom input barcode berjalan langsung secara otomatis begitu Anda menekan Enter atau melakukan *scan* via alat tembak fisik.
