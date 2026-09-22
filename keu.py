@@ -277,7 +277,6 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
         df_match = df_produk[df_produk["_kode"] == norm_kode(val)]
     if len(df_match) == 0:
         df_match = df_produk[
-            df_produk[kolom_barcode].astype(str).str.contains(val, case=False, na=False, regex=False) |
             df_produk[kolom_nama_barang].astype(str).str.contains(val, case=False, na=False, regex=False)
         ]
 
