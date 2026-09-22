@@ -695,8 +695,8 @@ else:
             if st.session_state.riwayat:
                 st.button("↩️ Batalkan Perubahan Terakhir", on_click=batalkan_terakhir, use_container_width=True)
 
-        if len(st.session_state.keranjang) > 0 and any(item["Harga Satuan"] > 0 for item in st.session_state.keranjang):
-            df_keranjang = pd.DataFrame([i for i in st.session_state.keranjang if i["Harga Satuan"] > 0])
+        if len(st.session_state.keranjang) > 0:
+            df_keranjang = pd.DataFrame(st.session_state.keranjang)
             subtotal_barang = int(df_keranjang["Subtotal"].sum()) if not df_keranjang.empty else 0
 
             st.markdown("### 💰 Rincian Biaya Tambahan")
@@ -719,7 +719,7 @@ else:
                 nama_pembeli = st.text_input("Nama Pelanggan", value="Pelanggan Umum", key="nama_pelanggan_input")
             with col_aksi2:
                 uang_tunai = st.number_input(
-                    "Uang Diterima dari Pembeli (Rp)", min_value=0, value=total_belanja_semua, step=5000, key=f"uang_tunai_{total_belanja_semua}"
+                    "Uang Diterima dari Pembeli (Rp)", min_value=0, value=max(total_belanja_semua, 0), step=5000, key=f"uang_tunai_{total_belanja_semua}"
                 )
 
             uang_kembalian = uang_tunai - total_belanja_semua
@@ -842,7 +842,7 @@ else:
             with col_wa:
                 st.markdown(f"""
 <div style="text-align: center;">
-    <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 14px 20px; text-decoration: none; font-size: 18px; border-radius: 12px; font-weight: bold; display: block; margin-top: 2px;">
+    <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 14px 20px; text-type: none; text-decoration: none; font-size: 18px; border-radius: 12px; font-weight: bold; display: block; margin-top: 2px;">
         💬 Kirim via WhatsApp
     </a>
 </div>
