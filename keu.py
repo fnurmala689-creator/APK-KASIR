@@ -361,6 +361,19 @@ def ubah_qty_langsung(index_item, delta):
         st.session_state.editor_counter += 1
 
 
+def update_qty_ketik(index_item, key_qty_widget):
+    simpan_riwayat()
+    if 0 <= index_item < len(st.session_state.keranjang):
+        val_baru = int(st.session_state.get(key_qty_widget, 1) or 1)
+        item = st.session_state.keranjang[index_item]
+        if val_baru <= 0:
+            st.session_state.keranjang.pop(index_item)
+        else:
+            item["Qty"] = val_baru
+            item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
+        st.session_state.editor_counter += 1
+
+
 def hapus_item_satuan(index_item):
     simpan_riwayat()
     if 0 <= index_item < len(st.session_state.keranjang):
@@ -612,7 +625,7 @@ else:
                 st.rerun()
             st.markdown("---")
 
-        # Tampilan Item Keranjang Runtut per Baris (Card Style di HP)
+        # Tampilan Item Keranjang Runtut per Baris dengan Qty terpadu (Minus - Ketik - Plus)
         for idx, item in enumerate(st.session_state.keranjang):
             with st.container(border=True):
                 st.markdown(f"**#{idx + 1} - {item['Nama Barang']}**")
@@ -634,23 +647,34 @@ else:
                         st.session_state.scan_counter_kasir_aktif = idx
                         st.rerun()
 
-                q_c1, q_c2, q_c3, q_c4 = st.columns([1, 1, 2, 1])
-                with q_c1:
+                # Bagian Qty dalam satu baris: [ - ] [ Input Angka ] [ + ] serta tombol Hapus
+                q_c_min, q_c_input, q_c_plus, q_c_del = st.columns([0.8, 1.5, 0.8, 1])
+                with q_c_min:
                     if st.button("-", key=f"min_{idx}", use_container_width=True):
                         ubah_qty_langsung(idx, -1)
                         st.rerun()
-                with q_c2:
+                with q_c_input:
+                    key_q_input = f"qty_input_{idx}_{st.session_state.editor_counter}"
+                    st.number_input(
+                        "Qty",
+                        min_value=1,
+                        value=int(item["Qty"]),
+                        step=1,
+                        key=key_q_input,
+                        label_visibility="collapsed",
+                        on_change=update_qty_ketik,
+                        args=(idx, key_q_input)
+                    )
+                with q_c_plus:
                     if st.button("+", key=f"plus_{idx}", use_container_width=True):
                         ubah_qty_langsung(idx, 1)
                         st.rerun()
-                with q_c3:
-                    st.markdown(f"<div style='padding-top:6px; font-size:14px;'>Qty: <b>{item['Qty']}</b></div>", unsafe_allow_html=True)
-                with q_c4:
-                    if st.button("🗑️", key=f"del_{idx}", use_container_width=True):
+                with q_c_del:
+                    if st.button("🗑️ Hapus", key=f"del_{idx}", use_container_width=True):
                         hapus_item_satuan(idx)
                         st.rerun()
 
-                st.markdown(f"<div style='font-size:13px; color:gray;'>@ Rp {rp(item['Harga Satuan'])} &nbsp;|&nbsp; Subtotal: <b style='color:#2f3640;'>Rp {rp(item['Subtotal'])}</b></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='font-size:13px; color:gray; margin-top:4px;'>@ Rp {rp(item['Harga Satuan'])} &nbsp;|&nbsp; Subtotal: <b style='color:#2f3640;'>Rp {rp(item['Subtotal'])}</b></div>", unsafe_allow_html=True)
 
             if "_dropdown_pilihan" in item:
                 st.markdown(f"Pilih opsi barang untuk baris {idx+1}:")
