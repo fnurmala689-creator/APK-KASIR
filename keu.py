@@ -273,14 +273,11 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
 
     simpan_riwayat()
     
-    # Sumber pencarian mencakup data dari kolom barcode DAN kolom nama barang di spreadsheet
+    # Pencarian menyeluruh ke kolom Barcode DAN Nama Barang di spreadsheet
     mask = pd.Series(False, index=df_produk.index)
-    
-    # 1. Cek kecocokan kode/barcode ternormalisasi
     if kolom_barcode and "_kode" in df_produk.columns:
         mask = mask | (df_produk["_kode"] == norm_kode(val))
     
-    # 2. Cek kecocokan parsial/menyeluruh pada semua kolom teks spreadsheet (terutama Barcode dan Nama Barang)
     for c in df_produk.columns:
         if c != "_kode":
             mask = mask | df_produk[c].astype(str).str.contains(val, case=False, na=False, regex=False)
@@ -644,7 +641,7 @@ else:
             getattr(st, tipe)(teks)
 
         st.markdown("### 🛒 Daftar Belanjaan")
-        st.info("💡 Ketik barcode/nama, pilih dari dropdown, atau klik ikon kamera 📷 untuk scan.")
+        st.info("💡 Ketik barcode atau nama barang, pilih dari dropdown, atau tekan Enter untuk memproses otomatis.")
 
         if st.session_state.scan_counter_kasir_aktif is not None:
             idx_aktif = st.session_state.scan_counter_kasir_aktif
@@ -672,9 +669,9 @@ else:
 
         h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
         with h_col0:
-            st.markdown("**Barcode / Kode / Nama**")
+            st.markdown("**Barcode / Nama Barang**")
         with h_col1:
-            st.markdown("**Nama Barang**")
+            st.markdown("**Nama Barang Terpilih**")
         with h_col2:
             st.markdown("**Jumlah (Qty)**")
         with h_col3:
@@ -687,10 +684,12 @@ else:
             row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
             with row_c0:
                 val_bc = item.get("Barcode", "")
-                
+                if not val_bc and item["Nama Barang"] != "Ketik barcode atau nama barang...":
+                    val_bc = item["Nama Barang"]
+
                 components.html(f"""
                 <div style="margin: 0px; padding: 0px; font-family: sans-serif;">
-                  <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Ketik/Scan..." 
+                  <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Ketik barcode/nama..." 
                          list="list_produk_{idx}" 
                          style="width: 100%; padding: 8px 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
                          onkeydown="if(event.key === 'Enter') {{ 
