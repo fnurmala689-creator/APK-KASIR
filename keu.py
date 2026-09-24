@@ -1,5 +1,3 @@
-name=keu (7).py
-```[cite: 1]
 import streamlit as st
 import pandas as pd
 import base64
@@ -56,7 +54,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-PERMANENT_CSV_URL = "[https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv](https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv)"
+PERMANENT_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIw6LgDSUn_lDlosWSAGQra0bR597E_Av6OYoo9uRpVr1P9ROMMgSaS_OSjp1Jj3Sp5GBRV01lIh0k/pub?output=csv"
 
 FALLBACK = pd.DataFrame({
     "Barcode": ["899111", "899222"],
@@ -266,3 +264,555 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
     simpan_riwayat()
     df_match = pd.DataFrame()
     if kolom_barcode:
+        df_match = df_produk[df_produk["_kode"] == norm_kode(val)]
+    if len(df_match) == 0:
+        df_match = df_produk[
+            df_produk[kolom_nama_barang].astype(str).str.contains(val, case=False, na=False, regex=False)
+        ]
+
+    if len(df_match) == 0:
+        st.session_state.pesan = ("warning", f"⚠️ Barang '{val}' tidak ditemukan.")
+    elif len(df_match) == 1:
+        row = df_match.iloc[0]
+        bcode = str(row[kolom_barcode]).strip() if kolom_barcode else "-"
+        nm = str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)"
+        hg = int(row[kolom_harga_pilihan])
+        
+        st.session_state.keranjang[idx_baris] = {
+            "Barcode": bcode,
+            "Nama Barang": nm,
+            "Qty": 1,
+            "Harga Satuan": hg,
+            "Subtotal": hg,
+        }
+        st.session_state.pesan = ("success", f"✅ Memuat: **{nm}** (Rp {rp(hg)})")
+    else:
+        opsi_list = []
+        for _, row in df_match.iterrows():
+            bcode = str(row[kolom_barcode]).strip() if kolom_barcode else "-"
+            nm = str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)"
+            hg = int(row[kolom_harga_pilihan])
+            opsi_list.append((bcode, nm, hg))
+        st.session_state.keranjang[idx_baris]["_dropdown_pilihan"] = opsi_list
+        st.session_state.pesan = ("info", f"Ditemukan beberapa barang untuk '{val}', silakan pilih.")
+    
+    st.session_state.editor_counter += 1
+
+
+def barcode_diketik(idx_baris, kolom_harga_pilihan, key_widget):
+    val = st.session_state.get(key_widget, "")
+    proses_input_barcode(idx_baris, val, kolom_harga_pilihan)
+
+
+def pilih_dari_dropdown(idx_baris, bcode, nm, hg):
+    simpan_riwayat()
+    st.session_state.keranjang[idx_baris] = {
+        "Barcode": bcode,
+        "Nama Barang": nm,
+        "Qty": 1,
+        "Harga Satuan": hg,
+        "Subtotal": hg,
+    }
+    if "_dropdown_pilihan" in st.session_state.keranjang[idx_baris]:
+        del st.session_state.keranjang[idx_baris]["_dropdown_pilihan"]
+    st.session_state.pesan = ("success", f"✅ Dipilih: **{nm}** (Rp {rp(hg)})")
+    st.session_state.editor_counter += 1
+
+
+def tambah_baris_kosong():
+    simpan_riwayat()
+    st.session_state.keranjang.append({
+        "Barcode": "",
+        "Nama Barang": "Ketik barcode atau nama barang...",
+        "Qty": 1,
+        "Harga Satuan": 0,
+        "Subtotal": 0,
+    })
+    st.session_state.editor_counter += 1
+
+
+def ubah_qty_langsung(index_item, delta):
+    simpan_riwayat()
+    if 0 <= index_item < len(st.session_state.keranjang):
+        item = st.session_state.keranjang[index_item]
+        item["Qty"] += delta
+        if item["Qty"] <= 0:
+            st.session_state.keranjang.pop(index_item)
+        else:
+            item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
+        st.session_state.editor_counter += 1
+
+
+def hapus_item_satuan(index_item):
+    simpan_riwayat()
+    if 0 <= index_item < len(st.session_state.keranjang):
+        st.session_state.keranjang.pop(index_item)
+        st.session_state.pesan = ("info", "❌ Baris dihapus.")
+        st.session_state.editor_counter += 1
+
+
+def batalkan_terakhir():
+    if st.session_state.riwayat:
+        st.session_state.keranjang = st.session_state.riwayat.pop()
+        st.session_state.editor_counter += 1
+        st.session_state.pesan = ("info", "↩️ Perubahan dibatalkan.")
+
+
+def minta_konfirmasi_kosong():
+    st.session_state.konfirmasi_kosong = True
+
+
+def batal_kosongkan():
+    st.session_state.konfirmasi_kosong = False
+
+
+def kosongkan_keranjang():
+    simpan_riwayat()
+    st.session_state.keranjang = []
+    st.session_state.pesan = ("info", "🗑️ Keranjang dikosongkan.")
+    st.session_state.konfirmasi_kosong = False
+    st.session_state.editor_counter += 1
+
+
+def hapus_pencarian_db():
+    st.session_state.search_db = ""
+
+
+def ambil_secret(nama):
+    try:
+        return str(st.secrets[nama]).strip()
+    except Exception:
+        return ""
+
+
+def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
+    barcode = st.session_state.tambah_barcode.strip()
+    nama = st.session_state.tambah_nama.strip()
+    url = ambil_secret("SHEET_WEBHOOK_URL")
+    token = ambil_secret("SHEET_TOKEN")
+
+    if not barcode:
+        st.session_state.pesan_tambah = ("warning", "⚠️ Barcode belum diisi.")
+        return
+    if not url or not token:
+        st.session_state.pesan_tambah = ("error", "⚠️ Konfigurasi sistem pusat belum lengkap.")
+        return
+
+    values = {kol_barcode: barcode, kol_nama: nama}
+    for c in kol_harga_list:
+        v = int(st.session_state.get(f"tambah_{c}", 0) or 0)
+        values[c] = v if v > 0 else ""
+
+    payload = {"token": token, "kolom_barcode": kol_barcode, "values": values}
+    try:
+        r = requests.post(url, data=json.dumps(payload), headers={"Content-Type": "text/plain"}, timeout=25)
+    except Exception as e:
+        st.session_state.pesan_tambah = ("error", f"⚠️ Gagal menyambung: {e}")
+        return
+
+    try:
+        hasil = r.json()
+    except Exception:
+        st.session_state.pesan_tambah = ("error", "⚠️ Kesalahan format data dari server.")
+        return
+
+    if hasil.get("ok"):
+        st.session_state.tambah_riwayat.append((datetime.now().strftime("%H:%M:%S"), barcode, nama or "(Tanpa Nama)"))
+        st.session_state.pesan_tambah = ("success", "✅ Barang baru berhasil disimpan.")
+        st.session_state.tambah_barcode = ""
+        st.session_state.tambah_nama = ""
+        for c in kol_harga_list:
+            st.session_state[f"tambah_{c}"] = 0
+    else:
+        st.session_state.pesan_tambah = ("error", f"⚠️ Ditolak: {hasil.get('error', 'kesalahan')}")
+
+
+# --- HEADER UTAMA ---
+st.title("TOKO JABON KIDUL SEPUR")
+st.caption("Sistem Kasir & Manajemen Toko")
+
+query_params = st.query_params
+if "scan_val" in query_params and "scan_idx" in query_params:
+    try:
+        s_idx = int(query_params["scan_idx"])
+        s_val = str(query_params["scan_val"])
+        st.query_params.clear()
+        kol_harga_temp = f"Harga {st.session_state.get('pilih_level_harga', 'Umum')}"
+        if kol_harga_temp not in df_produk.columns:
+            kol_harga_temp = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
+        proses_input_barcode(s_idx, s_val, kol_harga_temp)
+        st.rerun()
+    except Exception:
+        st.query_params.clear()
+
+if st.session_state.menu_aktif is None:
+    st.markdown("---")
+    st.markdown("### Pilih Menu Utama:")
+    c1, c2, c3 = st.columns(3)
+
+    with c1:
+        with st.container():
+            st.markdown('<div class="menu-btn">', unsafe_allow_html=True)
+            if st.button("🛒  KASIR UTAMA", key="menu_kasir_utama"):
+                st.session_state.menu_aktif = "Kasir"
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    with c2:
+        with st.container():
+            st.markdown('<div class="menu-btn">', unsafe_allow_html=True)
+            if st.button("📋  CEK HARGA", key="menu_cari_harga"):
+                st.session_state.menu_aktif = "Database"
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+
+    with c3:
+        with st.container():
+            st.markdown('<div class="menu-btn">', unsafe_allow_html=True)
+            if st.button("➕  TAMBAH BARANG", key="menu_tambah_barang"):
+                st.session_state.menu_aktif = "Tambah"
+                st.rerun()
+            st.markdown('</div>', unsafe_allow_html=True)
+
+else:
+    st.markdown("---")
+    nav1, nav2, nav3, nav_kosong = st.columns([1, 1, 1, 4])
+    with nav1:
+        if st.button("🛒 Kasir", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Kasir" else "secondary"):
+            st.session_state.menu_aktif = "Kasir"
+            st.rerun()
+    with nav2:
+        if st.button("📋 Harga", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Database" else "secondary"):
+            st.session_state.menu_aktif = "Database"
+            st.rerun()
+    with nav3:
+        if st.button("➕ Tambah", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Tambah" else "secondary"):
+            st.session_state.menu_aktif = "Tambah"
+            st.rerun()
+    st.markdown("---")
+
+    if st.session_state.menu_aktif == "Database":
+        st.subheader("📋 Daftar Barang & Cek Harga")
+        
+        buka_kamera_db = st.checkbox("📷 Aktifkan Pemindai Kamera", value=False, key="toggle_kamera_db")
+        if buka_kamera_db:
+            hasil_scan_db = qrcode_scanner(key=f"scanner_db_{st.session_state.scan_counter_db}")
+            if hasil_scan_db:
+                st.session_state.search_db = str(hasil_scan_db).strip()
+                st.session_state.scan_counter_db += 1
+                st.rerun()
+
+        search_database = st.text_input("🔍 Cari Nama Barang / Barcode:", placeholder="Ketik kata kunci...", key="search_db")
+        df_tampil = df_produk.drop(columns="_kode", errors="ignore")
+        if search_database:
+            kata = search_database.strip()
+            mask = df_tampil.astype(str).apply(lambda x: x.str.contains(kata, case=False, na=False, regex=False)).any(axis=1)
+            if "_kode" in df_produk.columns:
+                mask = mask | (df_produk["_kode"] == norm_kode(kata))
+            df_tampil = df_tampil[mask]
+            st.button("Reset Pencarian", on_click=hapus_pencarian_db)
+
+        df_tampil = df_tampil.copy()
+        for c in df_tampil.columns:
+            if c.lower().startswith("harga"):
+                df_tampil[c] = df_tampil[c].map(rp)
+        st.dataframe(df_tampil, use_container_width=True)
+
+    elif st.session_state.menu_aktif == "Tambah":
+        st.subheader("➕ Tambah Barang Baru")
+        kolom_harga_list = [c for c in df_produk.columns if c.lower().startswith("harga")]
+
+        if not kolom_barcode:
+            st.error("Kolom Barcode tidak ditemukan pada lembar data.")
+        else:
+            buka_kamera_tambah = st.checkbox("📷 Aktifkan Kamera untuk Scan Barcode", value=False, key="toggle_kamera_tambah")
+            if buka_kamera_tambah:
+                hasil_scan_tambah = qrcode_scanner(key=f"scanner_tambah_{st.session_state.scan_counter_tambah}")
+                if hasil_scan_tambah:
+                    st.session_state.tambah_barcode = str(hasil_scan_tambah).strip()
+                    st.session_state.scan_counter_tambah += 1
+                    st.rerun()
+
+            st.text_input("Barcode / SKU", key="tambah_barcode", placeholder="Scan atau ketik kode...")
+            st.text_input("Nama Produk", key="tambah_nama", placeholder="Ketik nama produk...")
+
+            if kolom_harga_list:
+                st.markdown("#### Pengaturan Harga")
+                kolom_ui = st.columns(len(kolom_harga_list))
+                for kol, c in zip(kolom_ui, kolom_harga_list):
+                    with kol:
+                        st.number_input(c, min_value=0, value=0, step=500, key=f"tambah_{c}")
+
+            st.markdown("")
+            st.button("Simpan Data Barang", type="primary", on_click=simpan_barang, args=(kolom_barcode, kolom_nama_barang, kolom_harga_list), use_container_width=True)
+
+            if st.session_state.pesan_tambah:
+                tipe_t, teks_t = st.session_state.pesan_tambah
+                getattr(st, tipe_t)(teks_t)
+
+    elif st.session_state.menu_aktif == "Kasir":
+        st.markdown("### 🏷️ Kategori Harga Pelanggan")
+        jenis_pelanggan = st.selectbox(
+            "Pilih kategori:",
+            ["Umum", "Bakul", "Umum Antar", "Usaha"],
+            key="pilih_level_harga",
+            label_visibility="collapsed"
+        )
+
+        kolom_harga_pilihan = f"Harga {jenis_pelanggan}"
+        if kolom_harga_pilihan not in df_produk.columns:
+            kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
+
+        st.markdown("---")
+
+        if not st.session_state.keranjang:
+            st.session_state.keranjang.append({
+                "Barcode": "",
+                "Nama Barang": "Ketik barcode atau nama barang...",
+                "Qty": 1,
+                "Harga Satuan": 0,
+                "Subtotal": 0,
+            })
+
+        if st.session_state.pesan:
+            tipe, teks = st.session_state.pesan
+            getattr(st, tipe)(teks)
+
+        st.markdown("### 🛒 Daftar Transaksi")
+
+        if st.session_state.scan_counter_kasir_aktif is not None:
+            idx_aktif = st.session_state.scan_counter_kasir_aktif
+            st.markdown("---")
+            st.info(f"📷 Pemindai aktif untuk Baris #{idx_aktif + 1}")
+            hasil_scan_item = qrcode_scanner(key=f"scanner_kasir_{idx_aktif}_{st.session_state.editor_counter}")
+            if hasil_scan_item:
+                val_hasil = str(hasil_scan_item).strip()
+                st.session_state.scan_counter_kasir_aktif = None
+                proses_input_barcode(idx_aktif, val_hasil, kolom_harga_pilihan)
+                st.rerun()
+            if st.button("Tutup Kamera", key="tutup_kamera_kasir"):
+                st.session_state.scan_counter_kasir_aktif = None
+                st.rerun()
+            st.markdown("---")
+
+        h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
+        with h_col0:
+            st.markdown("**Barcode**")
+        with h_col1:
+            st.markdown("**Nama Barang**")
+        with h_col2:
+            st.markdown("**Qty**")
+        with h_col3:
+            st.markdown("**Subtotal**")
+        with h_col4:
+            st.markdown("**Aksi**")
+        st.markdown("---")
+
+        for idx, item in enumerate(st.session_state.keranjang):
+            row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
+            with row_c0:
+                key_bc = f"barcode_input_{idx}_{st.session_state.editor_counter}"
+                st.text_input(
+                    f"Barcode {idx + 1}",
+                    value=item.get("Barcode", ""),
+                    key=key_bc,
+                    placeholder="Scan/ketik...",
+                    label_visibility="collapsed",
+                    on_change=barcode_diketik,
+                    args=(idx, kolom_harga_pilihan, key_bc),
+                )
+
+            with row_c0_cam:
+                if st.button("📷", key=f"btn_cam_{idx}", help="Scan Barcode"):
+                    st.session_state.scan_counter_kasir_aktif = idx
+                    st.rerun()
+
+            with row_c1:
+                st.markdown(f"**{idx + 1}. {item['Nama Barang']}**<br><span style='color:gray; font-size:13px;'>@ Rp {rp(item['Harga Satuan'])}</span>", unsafe_allow_html=True)
+            with row_c2:
+                sub_q1, sub_q2, sub_q3 = st.columns([1, 1, 1])
+                with sub_q1:
+                    if st.button("-", key=f"min_{idx}", use_container_width=True):
+                        ubah_qty_langsung(idx, -1)
+                        st.rerun()
+                with sub_q2:
+                    st.markdown(f"<div style='text-align: center; font-weight: 600; padding-top: 4px;'>{item['Qty']}</div>", unsafe_allow_html=True)
+                with sub_q3:
+                    if st.button("+", key=f"plus_{idx}", use_container_width=True):
+                        ubah_qty_langsung(idx, 1)
+                        st.rerun()
+            with row_c3:
+                st.markdown(f"**Rp {rp(item['Subtotal'])}**")
+            with row_c4:
+                if st.button("🗑️", key=f"del_{idx}", use_container_width=True):
+                    hapus_item_satuan(idx)
+                    st.rerun()
+
+            if "_dropdown_pilihan" in item:
+                st.markdown(f"Pilih opsi barang untuk baris {idx+1}:")
+                for p_idx, (p_bcode, p_nm, p_hg) in enumerate(item["_dropdown_pilihan"]):
+                    if st.button(f"[{p_bcode}] {p_nm} - Rp {rp(p_hg)}", key=f"drop_{idx}_{p_idx}", use_container_width=True):
+                        pilih_dari_dropdown(idx, p_bcode, p_nm, p_hg)
+                        st.rerun()
+
+            st.markdown("---")
+
+        col_tambah_baris, col_batal_aksi = st.columns(2)
+        with col_tambah_baris:
+            st.button("＋ Tambah Baris", on_click=tambah_baris_kosong, use_container_width=True)
+        with col_batal_aksi:
+            if st.session_state.riwayat:
+                st.button("↩️ Batalkan Aksi", on_click=batalkan_terakhir, use_container_width=True)
+
+        if len(st.session_state.keranjang) > 0:
+            df_keranjang = pd.DataFrame(st.session_state.keranjang)
+            subtotal_barang = int(df_keranjang["Subtotal"].sum()) if not df_keranjang.empty else 0
+
+            st.markdown("### Rincian Biaya")
+            col_dk1, col_dk2, col_dk3 = st.columns(3)
+            with col_dk1:
+                diskon_input = st.number_input("Diskon (Rp)", min_value=0, value=0, step=500, key="diskon_input")
+            with col_dk2:
+                ongkir = int(st.number_input("Ongkir (Rp)", min_value=0, value=0, step=500, key="ongkir_input"))
+            with col_dk3:
+                arisan = int(st.number_input("Arisan (Rp)", min_value=0, value=0, step=1000, key="arisan_input"))
+
+            diskon = min(int(diskon_input), subtotal_barang)
+            total_belanja_semua = subtotal_barang - diskon + ongkir + arisan
+
+            st.markdown("")
+            st.markdown(f"### TOTAL BAYAR: **Rp {rp(total_belanja_semua)}**")
+
+            col_aksi1, col_aksi2 = st.columns(2)
+            with col_aksi1:
+                nama_pembeli = st.text_input("Nama Pelanggan", value="Pelanggan Umum", key="nama_pelanggan_input")
+            with col_aksi2:
+                uang_tunai = st.number_input(
+                    "Uang Tunai (Rp)", min_value=0, value=max(total_belanja_semua, 0), step=5000, key=f"uang_tunai_{total_belanja_semua}"
+                )
+
+            uang_kembalian = uang_tunai - total_belanja_semua
+            if uang_kembalian >= 0:
+                st.success(f"Kembalian: Rp {rp(uang_kembalian)}")
+            else:
+                st.error(f"Uang Kurang: Rp {rp(abs(uang_kembalian))}")
+
+            st.markdown("---")
+            if not st.session_state.konfirmasi_kosong:
+                st.button("Kosongkan Keranjang", type="secondary", on_click=minta_konfirmasi_kosong, use_container_width=True)
+            else:
+                st.warning("Yakin ingin mengosongkan seluruh keranjang?")
+                col_k1, col_k2 = st.columns(2)
+                with col_k1:
+                    st.button("Ya, Kosongkan", type="primary", on_click=kosongkan_keranjang, use_container_width=True)
+                with col_k2:
+                    st.button("Batal", on_click=batal_kosongkan, use_container_width=True)
+
+            st.markdown("---")
+            st.markdown("### Cetak & Kirim Nota")
+
+            waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            printer_width = 32
+
+            def baris_kiri_kanan(label, val):
+                space = printer_width - (len(label) + len(val))
+                return label + (" " * max(1, space)) + val
+
+            total_str = rp(total_belanja_semua)
+            tunai_str = rp(uang_tunai)
+            kembalian_str = rp(uang_kembalian)
+
+            rincian = []
+            if diskon > 0 or ongkir > 0 or arisan > 0:
+                rincian.append(("Subtotal", rp(subtotal_barang)))
+                if diskon > 0:
+                    rincian.append(("Diskon", "-" + rp(diskon)))
+                if ongkir > 0:
+                    rincian.append(("Ongkir", rp(ongkir)))
+                if arisan > 0:
+                    rincian.append(("Arisan", rp(arisan)))
+
+            INIT = b'\x1b\x40'
+            ALIGN_CENTER = b'\x1b\x61\x01'
+            ALIGN_LEFT = b'\x1b\x61\x00'
+            BOLD_ON = b'\x1b\x45\x01'
+            BOLD_OFF = b'\x1b\x45\x00'
+            CUT_PAPER = b'\x1d\x56\x00'
+
+            raw_bytes = bytearray()
+            raw_bytes.extend(INIT)
+
+            def add_line(text="", align=ALIGN_LEFT, bold=False):
+                raw_bytes.extend(align)
+                raw_bytes.extend(BOLD_ON if bold else BOLD_OFF)
+                raw_bytes.extend((text + "\n").encode("utf-8"))
+
+            add_line("TOKO JABON KIDUL SEPUR", ALIGN_CENTER, bold=True)
+            add_line("Jabon - Jombang", ALIGN_CENTER)
+            add_line("Telp. 0857 3395 8305", ALIGN_CENTER)
+            add_line("-" * printer_width, ALIGN_CENTER)
+            add_line(f"Tanggal : {waktu_sekarang}")
+            add_line(f"Kepada : {nama_pembeli}")
+            add_line("-" * printer_width, ALIGN_CENTER)
+
+            item_valid = [it for it in st.session_state.keranjang if it["Harga Satuan"] > 0]
+            for item in item_valid:
+                add_line(item["Nama Barang"], bold=True)
+                add_line(baris_kiri_kanan(f"{rp(item['Harga Satuan'])} x {item['Qty']}", rp(item["Subtotal"])))
+                add_line("")
+
+            add_line("-" * printer_width, ALIGN_CENTER)
+            if rincian:
+                for lbl, val in rincian:
+                    add_line(baris_kiri_kanan(lbl, val))
+                add_line("-" * printer_width, ALIGN_CENTER)
+            add_line(baris_kiri_kanan("Total", total_str), bold=True)
+            add_line(baris_kiri_kanan("Tunai", tunai_str))
+            add_line(baris_kiri_kanan("Kembalian", kembalian_str))
+            add_line("-" * printer_width, ALIGN_CENTER)
+
+            raw_bytes.extend(ALIGN_CENTER)
+            raw_bytes.extend(BOLD_ON)
+            raw_bytes.extend(b"Terima Kasih & Semoga Berkah\n")
+            raw_bytes.extend(BOLD_OFF)
+            raw_bytes.extend(b"\n\n\n")
+            raw_bytes.extend(CUT_PAPER)
+
+            pesan_wa = (
+                "*NOTA BELANJA - TOKO JABON KIDUL SEPUR*\n"
+                "----------------------------------\n"
+                f"Tanggal : {waktu_sekarang}\n"
+                f"Kepada : {nama_pembeli}\n"
+                "----------------------------------\n"
+            )
+            for item in item_valid:
+                pesan_wa += (
+                    f"• {item['Nama Barang']}\n"
+                    f"  {rp(item['Harga Satuan'])} x {item['Qty']} = *Rp {rp(item['Subtotal'])}*\n\n"
+                )
+            pesan_wa += "----------------------------------\n"
+            if rincian:
+                for lbl, val in rincian:
+                    pesan_wa += f"{lbl}: Rp {val}\n"
+                pesan_wa += "----------------------------------\n"
+            pesan_wa += (
+                f"Total    : *Rp {total_str}*\n"
+                f"Tunai    : Rp {tunai_str}\n"
+                f"Kembalian: Rp {kembalian_str}\n"
+                "----------------------------------\n"
+                "Terima Kasih & Semoga Berkah"
+            )
+            whatsapp_url = f"https://api.whatsapp.com/send?text={urllib.parse.quote(pesan_wa)}"
+
+            col_ble, col_wa = st.columns(2)
+            with col_ble:
+                data_b64 = base64.b64encode(bytes(raw_bytes)).decode()
+                components.html(HTML_CETAK_BLE.replace("__DATA__", data_b64), height=110)
+            with col_wa:
+                st.markdown(f"""
+<div style="text-align: center;">
+    <a href="{whatsapp_url}" target="_blank" style="background-color: #25d366; color: white; padding: 12px 20px; text-decoration: none; font-size: 16px; border-radius: 6px; font-weight: 600; display: block; margin-top: 2px;">
+        💬 Kirim via WhatsApp
+    </a>
+</div>
+""", unsafe_allow_html=True)
