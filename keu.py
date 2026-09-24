@@ -11,39 +11,47 @@ from streamlit_qrcode_scanner import qrcode_scanner
 
 st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🛒", layout="wide")
 
-# --- CSS: TAMPILAN CLASSIC, PROFESIONAL, & BERSIH ---
+# --- CSS: TAMPILAN RESPONSIF HP & PROFESIONAL ---
 st.markdown(
     """
     <style>
     .block-container {
-        padding-top: 2rem;
+        padding-top: 1.5rem;
         padding-bottom: 2rem;
-        padding-left: 2rem;
-        padding-right: 2rem;
+        padding-left: 1rem;
+        padding-right: 1rem;
         max-width: 100%;
     }
     html, body, [class*="css"] {
-        font-size: 16px !important;
+        font-size: 15px !important;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
     
-    /* Styling tombol menu utama ala dashboard profesional */
+    /* Styling tombol menu utama */
     div[data-testid="column"] .menu-btn > button {
         width: 100% !important;
         border-radius: 8px !important;
-        padding: 24px 16px !important;
-        font-size: 18px !important;
+        padding: 20px 12px !important;
+        font-size: 16px !important;
         font-weight: 600 !important;
         border: 1px solid #dcdde1 !important;
         background-color: #f5f6fa !important;
         color: #2f3640 !important;
-        transition: all 0.2s ease !important;
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
     }
-    
-    div[data-testid="column"] .menu-btn > button:hover {
-        background-color: #e4e4e9 !important;
-        border-color: #b2bec3 !important;
+
+    /* Penyesuaian khusus tampilan HP agar elemen tidak terlalu mepet */
+    @media (max-width: 768px) {
+        .block-container {
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+        h1 {
+            font-size: 1.5rem !important;
+        }
+        h3 {
+            font-size: 1.2rem !important;
+        }
     }
 
     input {
@@ -234,7 +242,7 @@ if kolom_barcode:
 defaults = {
     "menu_aktif": None,
     "keranjang": [],
-    "lain_lain": [],  # Menyimpan daftar catatan tambahan (diskon, ongkir, dsb)
+    "lain_lain": [],
     "scan_counter_db": 0,
     "scan_counter_tambah": 0,
     "scan_counter_kasir_aktif": None,
@@ -464,7 +472,7 @@ if st.session_state.menu_aktif is None:
     with c1:
         with st.container():
             st.markdown('<div class="menu-btn">', unsafe_allow_html=True)
-            if st.button("KASIR UTAMA", key="menu_kasir_utama"):
+            if st.button("KASIR", key="menu_kasir_utama", use_container_width=True):
                 st.session_state.menu_aktif = "Kasir"
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -472,7 +480,7 @@ if st.session_state.menu_aktif is None:
     with c2:
         with st.container():
             st.markdown('<div class="menu-btn">', unsafe_allow_html=True)
-            if st.button("CEK HARGA", key="menu_cari_harga"):
+            if st.button("CEK HARGA", key="menu_cari_harga", use_container_width=True):
                 st.session_state.menu_aktif = "Database"
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -480,24 +488,24 @@ if st.session_state.menu_aktif is None:
     with c3:
         with st.container():
             st.markdown('<div class="menu-btn">', unsafe_allow_html=True)
-            if st.button("TAMBAH BARANG", key="menu_tambah_barang"):
+            if st.button("TAMBAH", key="menu_tambah_barang", use_container_width=True):
                 st.session_state.menu_aktif = "Tambah"
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
 else:
     st.markdown("---")
-    nav1, nav2, nav3, nav_kosong = st.columns([1, 1, 1, 4])
+    nav1, nav2, nav3 = st.columns(3)
     with nav1:
-        if st.button("Kasir", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Kasir" else "secondary"):
+        if st.button("🛒 Kasir", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Kasir" else "secondary"):
             st.session_state.menu_aktif = "Kasir"
             st.rerun()
     with nav2:
-        if st.button("Harga", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Database" else "secondary"):
+        if st.button("🔍 Harga", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Database" else "secondary"):
             st.session_state.menu_aktif = "Database"
             st.rerun()
     with nav3:
-        if st.button("Tambah", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Tambah" else "secondary"):
+        if st.button("➕ Tambah", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Tambah" else "secondary"):
             st.session_state.menu_aktif = "Tambah"
             st.rerun()
     st.markdown("---")
@@ -549,10 +557,8 @@ else:
 
             if kolom_harga_list:
                 st.markdown("#### Pengaturan Harga")
-                kolom_ui = st.columns(len(kolom_harga_list))
-                for kol, c in zip(kolom_ui, kolom_harga_list):
-                    with kol:
-                        st.number_input(c, min_value=0, value=0, step=500, key=f"tambah_{c}")
+                for c in kolom_harga_list:
+                    st.number_input(c, min_value=0, value=0, step=500, key=f"tambah_{c}")
 
             st.markdown("")
             st.button("Simpan Data Barang", type="primary", on_click=simpan_barang, args=(kolom_barcode, kolom_nama_barang, kolom_harga_list), use_container_width=True)
@@ -601,63 +607,50 @@ else:
                 st.session_state.scan_counter_kasir_aktif = None
                 proses_input_barcode(idx_aktif, val_hasil, kolom_harga_pilihan)
                 st.rerun()
-            if st.button("Tutup Kamera", key="tutup_kamera_kasir"):
+            if st.button("Tutup Kamera", key="tutup_kamera_kasir", use_container_width=True):
                 st.session_state.scan_counter_kasir_aktif = None
                 st.rerun()
             st.markdown("---")
 
-        h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
-        with h_col0:
-            st.markdown("**Barcode**")
-        with h_col1:
-            st.markdown("**Nama Barang**")
-        with h_col2:
-            st.markdown("**Qty**")
-        with h_col3:
-            st.markdown("**Subtotal**")
-        with h_col4:
-            st.markdown("**Aksi**")
-        st.markdown("---")
-
+        # Tampilan Item Keranjang Runtut per Baris (Card Style di HP)
         for idx, item in enumerate(st.session_state.keranjang):
-            row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
-            with row_c0:
-                key_bc = f"barcode_input_{idx}_{st.session_state.editor_counter}"
-                st.text_input(
-                    f"Barcode {idx + 1}",
-                    value=item.get("Barcode", ""),
-                    key=key_bc,
-                    placeholder="Scan/ketik...",
-                    label_visibility="collapsed",
-                    on_change=barcode_diketik,
-                    args=(idx, kolom_harga_pilihan, key_bc),
-                )
+            with st.container(border=True):
+                st.markdown(f"**#{idx + 1} - {item['Nama Barang']}**")
+                
+                rc1, rc2 = st.columns([3, 1])
+                with rc1:
+                    key_bc = f"barcode_input_{idx}_{st.session_state.editor_counter}"
+                    st.text_input(
+                        "Barcode",
+                        value=item.get("Barcode", ""),
+                        key=key_bc,
+                        placeholder="Scan/ketik barcode...",
+                        label_visibility="collapsed",
+                        on_change=barcode_diketik,
+                        args=(idx, kolom_harga_pilihan, key_bc),
+                    )
+                with rc2:
+                    if st.button("📷 Scan", key=f"btn_cam_{idx}", use_container_width=True):
+                        st.session_state.scan_counter_kasir_aktif = idx
+                        st.rerun()
 
-            with row_c0_cam:
-                if st.button("📷", key=f"btn_cam_{idx}", help="Scan Barcode"):
-                    st.session_state.scan_counter_kasir_aktif = idx
-                    st.rerun()
-
-            with row_c1:
-                st.markdown(f"**{idx + 1}. {item['Nama Barang']}**<br><span style='color:gray; font-size:13px;'>@ Rp {rp(item['Harga Satuan'])}</span>", unsafe_allow_html=True)
-            with row_c2:
-                sub_q1, sub_q2, sub_q3 = st.columns([1, 1, 1])
-                with sub_q1:
+                q_c1, q_c2, q_c3, q_c4 = st.columns([1, 1, 2, 1])
+                with q_c1:
                     if st.button("-", key=f"min_{idx}", use_container_width=True):
                         ubah_qty_langsung(idx, -1)
                         st.rerun()
-                with sub_q2:
-                    st.markdown(f"<div style='text-align: center; font-weight: 600; padding-top: 4px;'>{item['Qty']}</div>", unsafe_allow_html=True)
-                with sub_q3:
+                with q_c2:
                     if st.button("+", key=f"plus_{idx}", use_container_width=True):
                         ubah_qty_langsung(idx, 1)
                         st.rerun()
-            with row_c3:
-                st.markdown(f"**Rp {rp(item['Subtotal'])}**")
-            with row_c4:
-                if st.button("🗑️", key=f"del_{idx}", use_container_width=True):
-                    hapus_item_satuan(idx)
-                    st.rerun()
+                with q_c3:
+                    st.markdown(f"<div style='padding-top:6px; font-size:14px;'>Qty: <b>{item['Qty']}</b></div>", unsafe_allow_html=True)
+                with q_c4:
+                    if st.button("🗑️", key=f"del_{idx}", use_container_width=True):
+                        hapus_item_satuan(idx)
+                        st.rerun()
+
+                st.markdown(f"<div style='font-size:13px; color:gray;'>@ Rp {rp(item['Harga Satuan'])} &nbsp;|&nbsp; Subtotal: <b style='color:#2f3640;'>Rp {rp(item['Subtotal'])}</b></div>", unsafe_allow_html=True)
 
             if "_dropdown_pilihan" in item:
                 st.markdown(f"Pilih opsi barang untuk baris {idx+1}:")
@@ -665,8 +658,6 @@ else:
                     if st.button(f"[{p_bcode}] {p_nm} - Rp {rp(p_hg)}", key=f"drop_{idx}_{p_idx}", use_container_width=True):
                         pilih_dari_dropdown(idx, p_bcode, p_nm, p_hg)
                         st.rerun()
-
-            st.markdown("---")
 
         col_tambah_baris, col_batal_aksi = st.columns(2)
         with col_tambah_baris:
@@ -680,25 +671,24 @@ else:
             subtotal_barang = int(df_keranjang["Subtotal"].sum()) if not df_keranjang.empty else 0
 
             st.markdown("### Lain-Lain (Diskon / Ongkir / Arisan)")
-            
-            # Tombol untuk menambah baris Lain-Lain baru
-            st.button("＋ Tambah Catatan Lain-Lain", on_click=tambah_baris_lain)
+            st.button("＋ Tambah Catatan Lain-Lain", on_click=tambah_baris_lain, use_container_width=True)
 
             total_diskon = 0
             total_penambah = 0
             rincian_lain = []
 
             for i, ll in enumerate(st.session_state.lain_lain):
-                c_ll1, c_ll2, c_ll3 = st.columns([2, 2, 0.8])
-                with c_ll1:
-                    ll["tipe"] = st.selectbox("Jenis", ["Diskon", "Ongkir", "Arisan"], key=f"tipe_ll_{i}", index=["Diskon", "Ongkir", "Arisan"].index(ll["tipe"]))
-                with c_ll2:
-                    ll["nominal"] = int(st.number_input("Nominal (Rp)", min_value=0, value=ll["nominal"], step=500, key=f"Nominal_ll_{i}"))
-                with c_ll3:
-                    st.markdown("<br>", unsafe_allow_html=True)
-                    if st.button("❌", key=f"del_ll_{i}", help="Hapus baris ini"):
-                        hapus_baris_lain(i)
-                        st.rerun()
+                with st.container(border=True):
+                    c_ll1, c_ll2, c_ll3 = st.columns([2, 2, 1])
+                    with c_ll1:
+                        ll["tipe"] = st.selectbox("Jenis", ["Diskon", "Ongkir", "Arisan"], key=f"tipe_ll_{i}", index=["Diskon", "Ongkir", "Arisan"].index(ll["tipe"]))
+                    with c_ll2:
+                        ll["nominal"] = int(st.number_input("Nominal (Rp)", min_value=0, value=ll["nominal"], step=500, key=f"Nominal_ll_{i}"))
+                    with c_ll3:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if st.button("❌ Hapus", key=f"del_ll_{i}", use_container_width=True):
+                            hapus_baris_lain(i)
+                            st.rerun()
 
                 if ll["tipe"] == "Diskon":
                     total_diskon += ll["nominal"]
@@ -710,16 +700,13 @@ else:
             total_diskon = min(total_diskon, subtotal_barang)
             total_belanja_semua = subtotal_barang - total_diskon + total_penambah
 
-            st.markdown("")
+            st.markdown("---")
             st.markdown(f"### TOTAL BAYAR: **Rp {rp(total_belanja_semua)}**")
 
-            col_aksi1, col_aksi2 = st.columns(2)
-            with col_aksi1:
-                nama_pembeli = st.text_input("Nama Pelanggan", value="Pelanggan Umum", key="nama_pelanggan_input")
-            with col_aksi2:
-                uang_tunai = st.number_input(
-                    "Uang Tunai (Rp)", min_value=0, value=max(total_belanja_semua, 0), step=5000, key=f"uang_tunai_{total_belanja_semua}"
-                )
+            nama_pembeli = st.text_input("Nama Pelanggan", value="Pelanggan Umum", key="nama_pelanggan_input")
+            uang_tunai = st.number_input(
+                "Uang Tunai (Rp)", min_value=0, value=max(total_belanja_semua, 0), step=5000, key=f"uang_tunai_{total_belanja_semua}"
+            )
 
             uang_kembalian = uang_tunai - total_belanja_semua
             if uang_kembalian >= 0:
