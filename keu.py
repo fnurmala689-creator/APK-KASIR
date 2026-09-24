@@ -349,18 +349,6 @@ def hapus_baris_lain(idx):
         st.session_state.lain_lain.pop(idx)
 
 
-def ubah_qty_langsung(index_item, delta):
-    simpan_riwayat()
-    if 0 <= index_item < len(st.session_state.keranjang):
-        item = st.session_state.keranjang[index_item]
-        item["Qty"] += delta
-        if item["Qty"] <= 0:
-            st.session_state.keranjang.pop(index_item)
-        else:
-            item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
-        st.session_state.editor_counter += 1
-
-
 def update_qty_ketik(index_item, key_qty_widget):
     simpan_riwayat()
     if 0 <= index_item < len(st.session_state.keranjang):
@@ -625,7 +613,7 @@ else:
                 st.rerun()
             st.markdown("---")
 
-        # Tampilan Item Keranjang Runtut per Baris dengan Qty terpadu (Minus - Ketik - Plus)
+        # Tampilan Item Keranjang Runtut per Baris dengan Qty (Input Angka) dan Tombol Hapus
         for idx, item in enumerate(st.session_state.keranjang):
             with st.container(border=True):
                 st.markdown(f"**#{idx + 1} - {item['Nama Barang']}**")
@@ -647,12 +635,8 @@ else:
                         st.session_state.scan_counter_kasir_aktif = idx
                         st.rerun()
 
-                # Bagian Qty dalam satu baris: [ - ] [ Input Angka ] [ + ] serta tombol Hapus
-                q_c_min, q_c_input, q_c_plus, q_c_del = st.columns([0.8, 1.5, 0.8, 1])
-                with q_c_min:
-                    if st.button("-", key=f"min_{idx}", use_container_width=True):
-                        ubah_qty_langsung(idx, -1)
-                        st.rerun()
+                # Bagian Qty (Input Angka) serta tombol Hapus
+                q_c_input, q_c_del = st.columns([2.3, 1])
                 with q_c_input:
                     key_q_input = f"qty_input_{idx}_{st.session_state.editor_counter}"
                     st.number_input(
@@ -665,10 +649,6 @@ else:
                         on_change=update_qty_ketik,
                         args=(idx, key_q_input)
                     )
-                with q_c_plus:
-                    if st.button("+", key=f"plus_{idx}", use_container_width=True):
-                        ubah_qty_langsung(idx, 1)
-                        st.rerun()
                 with q_c_del:
                     if st.button("🗑️ Hapus", key=f"del_{idx}", use_container_width=True):
                         hapus_item_satuan(idx)
