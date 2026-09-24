@@ -323,6 +323,15 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
     st.session_state.editor_counter += 1
 
 
+def barcode_diketik(idx_baris, kolom_harga_pilihan, key_widget):
+    """Callback saat kolom barcode/nama diketik lalu Enter atau pindah fokus.
+    Membaca nilai widget langsung dari session_state lalu memprosesnya
+    lewat proses_input_barcode (cocokkan ke barcode, kalau tidak ada baru
+    dicari berdasarkan nama barang)."""
+    val = st.session_state.get(key_widget, "")
+    proses_input_barcode(idx_baris, val, kolom_harga_pilihan)
+
+
 def pilih_dari_dropdown(idx_baris, bcode, nm, hg):
     simpan_riwayat()
     st.session_state.keranjang[idx_baris] = {
@@ -615,19 +624,6 @@ else:
                 st.rerun()
             st.markdown(f"---")
 
-        options_html = ""
-        daftar_kode_valid = []
-        for _, row in df_produk.iterrows():
-            b_val = str(row[kolom_barcode]).strip() if kolom_barcode else ""
-            n_val = str(row[kolom_nama_barang]).strip()
-            if b_val:
-                options_html += f'<option value="{b_val}">{n_val}</option>'
-                daftar_kode_valid.append(b_val)
-            if n_val:
-                options_html += f'<option value="{n_val}"></option>'
-                daftar_kode_valid.append(n_val)
-        kode_valid_json = json.dumps(daftar_kode_valid)
-
         h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
         with h_col0:
             st.markdown("**Barcode / Kode**")
@@ -644,28 +640,16 @@ else:
         for idx, item in enumerate(st.session_state.keranjang):
             row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
             with row_c0:
-                val_bc = item.get("Barcode", "")
-                
-                components.html(f"""
-                <div style="margin: 0px; padding: 0px; font-family: sans-serif;">
-                  <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Ketik/Scan..." 
-                         list="list_produk_{idx}" 
-                         style="width: 100%; padding: 8px 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
-                         onkeydown="if(event.key === 'Enter') {{ 
-                             const val = encodeURIComponent(this.value);
-                             window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + val;
-                         }}"
-                         oninput="const kodeValid = {kode_valid_json};
-                             if (kodeValid.includes(this.value)) {{
-                                 const val = encodeURIComponent(this.value);
-                                 window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + val;
-                             }}"
-                         onchange="const val = encodeURIComponent(this.value); window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + val;" />
-                  <datalist id="list_produk_{idx}">
-                    {options_html}
-                  </datalist>
-                </div>
-                """, height=45)
+                key_bc = f"barcode_input_{idx}_{st.session_state.editor_counter}"
+                st.text_input(
+                    f"Barcode baris {idx + 1}",
+                    value=item.get("Barcode", ""),
+                    key=key_bc,
+                    placeholder="Ketik/Scan barcode atau nama...",
+                    label_visibility="collapsed",
+                    on_change=barcode_diketik,
+                    args=(idx, kolom_harga_pilihan, key_bc),
+                )
 
             with row_c0_cam:
                 st.markdown("<div style='margin-top: 2px;'>", unsafe_allow_html=True)
