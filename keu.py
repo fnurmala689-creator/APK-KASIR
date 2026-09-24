@@ -697,7 +697,7 @@ else:
 
         for idx, item in enumerate(st.session_state.keranjang):
             row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
-            with row_c0:
+           with row_c0:
                 val_bc = item.get("Input_Barcode", item.get("Barcode", ""))
 
                 components.html(f"""
@@ -705,11 +705,25 @@ else:
                   <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Barcode / Nama..." 
                          list="list_produk_{idx}" 
                          style="width: 100%; padding: 8px 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
+                         oninput="
+                             const val = this.value;
+                             const datalist = document.getElementById('list_produk_{idx}');
+                             const options = datalist ? datalist.options : [];
+                             let matchFound = false;
+                             for (let i = 0; i < options.length; i++) {{
+                                 if (options[i].value === val || options[i].text === val || options[i].value.includes(val)) {{
+                                     matchFound = true;
+                                     break;
+                                 }}
+                             }}
+                             if (matchFound || val.length > 3) {{
+                                 window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + encodeURIComponent(val);
+                             }}
+                         "
                          onkeydown="if(event.key === 'Enter') {{ 
                              const val = encodeURIComponent(this.value);
                              window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + val;
-                         }}"
-                         onchange="const val = encodeURIComponent(this.value); window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + val;" />
+                         }}" />
                   <datalist id="list_produk_{idx}">
                     {options_html}
                   </datalist>
