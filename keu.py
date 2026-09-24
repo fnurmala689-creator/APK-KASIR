@@ -273,7 +273,7 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
 
     simpan_riwayat()
     
-    # Pencarian menyeluruh ke kolom Barcode DAN Nama Barang di spreadsheet
+    # Pencarian menyeluruh mencocokkan input ke kolom Barcode ATAU Nama Barang di spreadsheet
     mask = pd.Series(False, index=df_produk.index)
     if kolom_barcode and "_kode" in df_produk.columns:
         mask = mask | (df_produk["_kode"] == norm_kode(val))
@@ -285,7 +285,7 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
     df_match = df_produk[mask]
 
     if len(df_match) == 0:
-        st.session_state.pesan = ("warning", f"⚠️ Barang '{val}' tidak ditemukan.")
+        st.session_state.pesan = ("warning", f"⚠️ Barang '{val}' tidak ditemukan di spreadsheet.")
     elif len(df_match) == 1:
         row = df_match.iloc[0]
         bcode = str(row[kolom_barcode]).strip() if kolom_barcode else "-"
@@ -299,7 +299,7 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
             "Harga Satuan": hg,
             "Subtotal": hg,
         }
-        st.session_state.pesan = ("success", f"✅ Memuat: **{nm}** (Rp {rp(hg)})")
+        st.session_state.pesan = ("success", f"✅ Berhasil memuat: **{nm}** (Rp {rp(hg)})")
     else:
         opsi_list = []
         for _, row in df_match.iterrows():
@@ -641,7 +641,7 @@ else:
             getattr(st, tipe)(teks)
 
         st.markdown("### 🛒 Daftar Belanjaan")
-        st.info("💡 Ketik barcode atau nama barang, pilih dari dropdown, atau tekan Enter untuk memproses otomatis.")
+        st.info("💡 Ketik barcode atau nama barang, pilih dari dropdown, atau tekan Enter untuk mencocokkan data dari spreadsheet secara otomatis.")
 
         if st.session_state.scan_counter_kasir_aktif is not None:
             idx_aktif = st.session_state.scan_counter_kasir_aktif
@@ -669,9 +669,9 @@ else:
 
         h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
         with h_col0:
-            st.markdown("**Barcode / Nama Barang**")
+            st.markdown("**Barcode / Ketik Nama**")
         with h_col1:
-            st.markdown("**Nama Barang Terpilih**")
+            st.markdown("**Nama Barang (Otomatis)**")
         with h_col2:
             st.markdown("**Jumlah (Qty)**")
         with h_col3:
@@ -689,7 +689,7 @@ else:
 
                 components.html(f"""
                 <div style="margin: 0px; padding: 0px; font-family: sans-serif;">
-                  <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Ketik barcode/nama..." 
+                  <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Barcode / Nama..." 
                          list="list_produk_{idx}" 
                          style="width: 100%; padding: 8px 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
                          onkeydown="if(event.key === 'Enter') {{ 
