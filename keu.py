@@ -625,7 +625,7 @@ else:
                 st.rerun()
             st.markdown("---")
 
-        # Tampilan Item Keranjang Runtut per Baris dengan Qty terpadu (Minus - Ketik - Plus)
+        # Tampilan Item Keranjang Runtut per Baris dengan Qty terpadu (Tombol -/+ khusus & Number input bawaan)
         for idx, item in enumerate(st.session_state.keranjang):
             with st.container(border=True):
                 st.markdown(f"**#{idx + 1} - {item['Nama Barang']}**")
@@ -647,7 +647,7 @@ else:
                         st.session_state.scan_counter_kasir_aktif = idx
                         st.rerun()
 
-                # Bagian Qty dalam satu baris: [ - ] [ Input Angka ] [ + ] serta tombol Hapus
+                # Bagian Qty dengan tombol - dan + di sisi luar serta input angka di tengah
                 q_c_min, q_c_input, q_c_plus, q_c_del = st.columns([0.8, 1.5, 0.8, 1])
                 with q_c_min:
                     if st.button("-", key=f"min_{idx}", use_container_width=True):
