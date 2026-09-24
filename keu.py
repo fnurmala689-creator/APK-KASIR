@@ -273,13 +273,16 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
 
     simpan_riwayat()
     df_match = pd.DataFrame()
+    
+    # 1. Cocokkan persis dengan kode/barcode jika ada
     if kolom_barcode:
         df_match = df_produk[df_produk["_kode"] == norm_kode(val)]
+    
+    # 2. Jika tidak ketemu, cari berdasarkan kemiripan nama barang atau barcode (pencarian fleksibel)
     if len(df_match) == 0:
-        df_match = df_produk[
-            df_produk[kolom_barcode].astype(str).str.contains(val, case=False, na=False, regex=False) |
-            df_produk[kolom_nama_barang].astype(str).str.contains(val, case=False, na=False, regex=False)
-        ]
+        mask_barcode = df_produk[kolom_barcode].astype(str).str.contains(val, case=False, na=False, regex=False) if kolom_barcode else False
+        mask_nama = df_produk[kolom_nama_barang].astype(str).str.contains(val, case=False, na=False, regex=False)
+        df_match = df_produk[mask_barcode | mask_nama]
 
     if len(df_match) == 0:
         st.session_state.pesan = ("warning", f"⚠️ Barang '{val}' tidak ditemukan.")
