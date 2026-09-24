@@ -11,7 +11,7 @@ from streamlit_qrcode_scanner import qrcode_scanner
 
 st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🤞", layout="wide")
 
-# --- CSS STYLING ---
+# --- CSS: BUBBLE HANYA UNTUK MENU UTAMA, TOMBOL LAIN NORMAL ---
 st.markdown(
     """
     <style>
@@ -156,25 +156,32 @@ async function cariKarakteristik(server) {
   return null;
 }
 
+// Variabel global untuk menyimpan perangkat yang aktif di sesi browser saat ini
 let cachedDevice = null;
 
 async function sambungkan() {
   let server = null;
+
+  // 1. Coba gunakan perangkat di memori sesi aktif jika ada
   if (cachedDevice && cachedDevice.gatt.connected) {
     return { device: cachedDevice, ch: await cariKarakteristik(cachedDevice.gatt) };
   }
+
+  // 2. Coba ambil dari riwayat perangkat yang diizinkan browser
   if (navigator.bluetooth.getDevices) {
     try {
       const daftar = await navigator.bluetooth.getDevices();
       if (daftar && daftar.length > 0) {
         cachedDevice = daftar[0];
-        setStatus("Menghubungkan ke printer...");
+        setStatus("Menghubungkan ke printer tersimpan...");
         server = await cachedDevice.gatt.connect();
         const ch = await cariKarakteristik(server);
         if (ch) return { device: cachedDevice, ch: ch };
       }
     } catch (e) {}
   }
+
+  // 3. Jika belum pernah atau memori bersih, tampilkan kotak pilih perangkat (hanya sekali)
   setStatus("Pilih printer Bluetooth Anda...");
   cachedDevice = await navigator.bluetooth.requestDevice({
     acceptAllDevices: true,
@@ -193,14 +200,17 @@ async function cetak() {
       setStatus("❌ Browser tidak mendukung Bluetooth.");
       return;
     }
+    
     setStatus("Menghubungkan...");
     const hasil = await sambungkan();
     if (!hasil || !hasil.ch) {
       setStatus("❌ Jalur cetak printer tidak dikenali.");
       return;
     }
+    
     device = hasil.device;
     const ch = hasil.ch;
+    
     setStatus("Sedang mencetak...");
     const data = bytesDariB64(DATA_B64);
     for (let i = 0; i < data.length; i += CHUNK) {
@@ -215,12 +225,17 @@ async function cetak() {
     }
     setStatus("✅ Berhasil dicetak!");
   } catch (e) {
-    cachedDevice = null;
+    cachedDevice = resetDeviceCache();
     setStatus("❌ Gagal. Pastikan printer menyala & klik cetak ulang.");
   } finally {
     btn.disabled = false;
   }
 }
+
+function resetDeviceCache() {
+  return null;
+}
+
 if (btn) btn.addEventListener("click", cetak);
 </script>
 """
@@ -243,7 +258,6 @@ if kolom_barcode:
 defaults = {
     "menu_aktif": None,
     "keranjang": [],
-    "daftar_pending": [],
     "scan_counter_db": 0,
     "scan_counter_tambah": 0,
     "scan_counter_kasir_aktif": None,
@@ -272,46 +286,30 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
         return
 
     simpan_riwayat()
-    
-    # Simpan input mentah ke keranjang terlebih dahulu
-    st.session_state.keranjang[idx_baris]["Input_Barcode"] = val
-
-    # Pencarian mencocokkan input ke kolom Barcode ATAU Nama Barang di spreadsheet
-    mask = pd.Series(False, index=df_produk.index)
-    if kolom_barcode and "_kode" in df_produk.columns:
-        mask = mask | (df_produk["_kode"] == norm_kode(val))
-    
-    for c in df_produk.columns:
-        if c != "_kode":
-            mask = mask | df_produk[c].astype(str).str.contains(val, case=False, na=False, regex=False)
-
-    df_match = df_produk[mask]
+    df_match = pd.DataFrame()
+    if kolom_barcode:
+        df_match = df_produk[df_produk["_kode"] == norm_kode(val)]
+    if len(df_match) == 0:
+        df_match = df_produk[
+            df_produk[kolom_nama_barang].astype(str).str.contains(val, case=False, na=False, regex=False)
+        ]
 
     if len(df_match) == 0:
-        st.session_state.keranjang[idx_baris].update({
-            "Barcode": val,
-            "Nama Barang": f"⚠️ Tidak Ditemukan: {val}",
-            "Harga Satuan": 0,
-            "Subtotal": 0,
-        })
-        if "_dropdown_pilihan" in st.session_state.keranjang[idx_baris]:
-            del st.session_state.keranjang[idx_baris]["_dropdown_pilihan"]
-        st.session_state.pesan = ("warning", f"⚠️ Barang '{val}' tidak ditemukan di spreadsheet.")
+        st.session_state.pesan = ("warning", f"⚠️ Barang '{val}' tidak ditemukan.")
     elif len(df_match) == 1:
         row = df_match.iloc[0]
         bcode = str(row[kolom_barcode]).strip() if kolom_barcode else "-"
         nm = str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)"
         hg = int(row[kolom_harga_pilihan])
         
-        st.session_state.keranjang[idx_baris].update({
+        st.session_state.keranjang[idx_baris] = {
             "Barcode": bcode,
             "Nama Barang": nm,
+            "Qty": 1,
             "Harga Satuan": hg,
-            "Subtotal": st.session_state.keranjang[idx_baris]["Qty"] * hg,
-        })
-        if "_dropdown_pilihan" in st.session_state.keranjang[idx_baris]:
-            del st.session_state.keranjang[idx_baris]["_dropdown_pilihan"]
-        st.session_state.pesan = ("success", f"✅ Berhasil memuat: **{nm}** (Rp {rp(hg)})")
+            "Subtotal": hg,
+        }
+        st.session_state.pesan = ("success", f"✅ Memuat: **{nm}** (Rp {rp(hg)})")
     else:
         opsi_list = []
         for _, row in df_match.iterrows():
@@ -327,14 +325,13 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
 
 def pilih_dari_dropdown(idx_baris, bcode, nm, hg):
     simpan_riwayat()
-    qty_sekarang = st.session_state.keranjang[idx_baris].get("Qty", 1)
-    st.session_state.keranjang[idx_baris].update({
+    st.session_state.keranjang[idx_baris] = {
         "Barcode": bcode,
-        "Input_Barcode": bcode,
         "Nama Barang": nm,
+        "Qty": 1,
         "Harga Satuan": hg,
-        "Subtotal": qty_sekarang * hg,
-    })
+        "Subtotal": hg,
+    }
     if "_dropdown_pilihan" in st.session_state.keranjang[idx_baris]:
         del st.session_state.keranjang[idx_baris]["_dropdown_pilihan"]
     st.session_state.pesan = ("success", f"✅ Dipilih: **{nm}** (Rp {rp(hg)})")
@@ -345,7 +342,6 @@ def tambah_baris_kosong():
     simpan_riwayat()
     st.session_state.keranjang.append({
         "Barcode": "",
-        "Input_Barcode": "",
         "Nama Barang": "Ketik barcode atau nama barang...",
         "Qty": 1,
         "Harga Satuan": 0,
@@ -395,40 +391,6 @@ def kosongkan_keranjang():
     st.session_state.pesan = ("info", "🗑️ Keranjang dikosongkan.")
     st.session_state.konfirmasi_kosong = False
     st.session_state.editor_counter += 1
-
-
-def simpan_pending(nama_pelanggan):
-    item_valid = [it for it in st.session_state.keranjang if it["Harga Satuan"] > 0]
-    if not item_valid:
-        st.session_state.pesan = ("warning", "⚠️ Keranjang masih kosong, tidak ada yang bisa dipending.")
-        return
-    
-    waktu_pending = datetime.now().strftime("%H:%M:%S")
-    label_pending = f"{nama_pelanggan} ({waktu_pending}) - {len(item_valid)} Item"
-    
-    st.session_state.daftar_pending.append({
-        "nama": label_pending,
-        "keranjang": copy.deepcopy(item_valid),
-        "waktu": waktu_pending
-    })
-    st.session_state.keranjang = []
-    st.session_state.pesan = ("success", f"⏸️ Nota untuk '{nama_pelanggan}' berhasil dipending!")
-    st.session_state.editor_counter += 1
-
-
-def muat_pending(index_pending):
-    if 0 <= index_pending < len(st.session_state.daftar_pending):
-        pending_item = st.session_state.daftar_pending.pop(index_pending)
-        st.session_state.keranjang = pending_item["keranjang"]
-        st.session_state.pesan = ("success", f"▶️ Memuat kembali nota pending: {pending_item['nama']}")
-        st.session_state.editor_counter += 1
-
-
-def hapus_pending(index_pending):
-    if 0 <= index_pending < len(st.session_state.daftar_pending):
-        st.session_state.daftar_pending.pop(index_pending)
-        st.session_state.pesan = ("info", "❌ Nota pending dihapus.")
-        st.session_state.editor_counter += 1
 
 
 def hapus_pencarian_db():
@@ -616,25 +578,6 @@ else:
             label_visibility="collapsed"
         )
 
-        # --- BAGIAN PENDING NOTA / DAFTAR TUNGGU ---
-        if st.session_state.daftar_pending:
-            with st.expander(f"⏸️ Daftar Nota Pending ({len(st.session_state.daftar_pending)} Nota Tertunda)", expanded=False):
-                for p_idx, p_data in enumerate(st.session_state.daftar_pending):
-                    col_pn1, col_pn2, col_pn3 = st.columns([3, 1, 1])
-                    with col_pn1:
-                        st.markdown(f"**{p_data['nama']}**")
-                    with col_pn2:
-                        if st.button("▶️ Lanjutkan", key=f"load_pending_{p_idx}", use_container_width=True):
-                            muat_pending(p_idx)
-                            st.rerun()
-                    with col_pn3:
-                        if st.button("🗑️ Hapus", key=f"del_pending_{p_idx}", use_container_width=True):
-                            hapus_pending(p_idx)
-                            st.rerun()
-            st.markdown("---")
-
-        st.markdown("---")
-
         kolom_harga_pilihan = f"Harga {jenis_pelanggan}"
         if kolom_harga_pilihan not in df_produk.columns:
             kolom_harga_pilihan = "Harga Umum" if "Harga Umum" in df_produk.columns else df_produk.columns[1]
@@ -644,7 +587,6 @@ else:
         if not st.session_state.keranjang:
             st.session_state.keranjang.append({
                 "Barcode": "",
-                "Input_Barcode": "",
                 "Nama Barang": "Ketik barcode atau nama barang...",
                 "Qty": 1,
                 "Harga Satuan": 0,
@@ -656,7 +598,7 @@ else:
             getattr(st, tipe)(teks)
 
         st.markdown("### 🛒 Daftar Belanjaan")
-        st.info("💡 Ketik barcode atau nama barang, pilih dari dropdown, atau tekan Enter untuk mencocokkan data dari spreadsheet secara otomatis.")
+        st.info("💡 Ketik nama barang/barcode, tembak scanner fisik, atau klik ikon kamera 📷 untuk scan.")
 
         if st.session_state.scan_counter_kasir_aktif is not None:
             idx_aktif = st.session_state.scan_counter_kasir_aktif
@@ -684,9 +626,9 @@ else:
 
         h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
         with h_col0:
-            st.markdown("**Barcode / Ketik Nama**")
+            st.markdown("**Barcode / Kode**")
         with h_col1:
-            st.markdown("**Nama Barang (Otomatis)**")
+            st.markdown("**Nama Barang**")
         with h_col2:
             st.markdown("**Jumlah (Qty)**")
         with h_col3:
@@ -698,39 +640,24 @@ else:
         for idx, item in enumerate(st.session_state.keranjang):
             row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
             with row_c0:
-                val_bc = item.get("Input_Barcode", item.get("Barcode", ""))
-
+                val_bc = item.get("Barcode", "")
+                
                 components.html(f"""
                 <div style="margin: 0px; padding: 0px; font-family: sans-serif;">
-                  <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Barcode / Nama..." 
+                  <input type="text" id="bc_{idx}" value="{val_bc}" placeholder="Ketik/Scan..." 
                          list="list_produk_{idx}" 
                          style="width: 100%; padding: 8px 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;"
-                         oninput="
-                             const val = this.value;
-                             const datalist = document.getElementById('list_produk_{idx}');
-                             const options = datalist ? datalist.options : [];
-                             let matchFound = false;
-                             for (let i = 0; i < options.length; i++) {{
-                                 if (options[i].value === val || options[i].text === val || options[i].value.includes(val)) {{
-                                     matchFound = true;
-                                     break;
-                                 }}
-                             }}
-                             if (matchFound || val.length > 3) {{
-                                 window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + encodeURIComponent(val);
-                             }}
-                         "
                          onkeydown="if(event.key === 'Enter') {{ 
                              const val = encodeURIComponent(this.value);
                              window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + val;
-                         }}" />
+                         }}"
+                         onchange="const val = encodeURIComponent(this.value); window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + val;" />
                   <datalist id="list_produk_{idx}">
                     {options_html}
                   </datalist>
                 </div>
                 """, height=45)
 
-                
             with row_c0_cam:
                 st.markdown("<div style='margin-top: 2px;'>", unsafe_allow_html=True)
                 if st.button("📷", key=f"btn_cam_{idx}", help="Scan Kamera"):
@@ -753,7 +680,6 @@ else:
                         ubah_qty_langsung(idx, 1)
                         st.rerun()
             with row_c3:
-                item["Subtotal"] = int(item["Qty"]) * int(item["Harga Satuan"])
                 st.markdown(f"**Rp {rp(item['Subtotal'])}**")
             with row_c4:
                 if st.button("🗑️", key=f"del_{idx}", use_container_width=True):
@@ -802,11 +728,6 @@ else:
                 uang_tunai = st.number_input(
                     "Uang Diterima dari Pembeli (Rp)", min_value=0, value=max(total_belanja_semua, 0), step=5000, key=f"uang_tunai_{total_belanja_semua}"
                 )
-
-            st.markdown("")
-            if st.button("⏸️ Pending Nota Ini (Simpan Sementara)", type="primary", use_container_width=True):
-                simpan_pending(nama_pembeli)
-                st.rerun()
 
             uang_kembalian = uang_tunai - total_belanja_semua
             if uang_kembalian >= 0:
