@@ -616,13 +616,17 @@ else:
             st.markdown(f"---")
 
         options_html = ""
+        daftar_kode_valid = []
         for _, row in df_produk.iterrows():
             b_val = str(row[kolom_barcode]).strip() if kolom_barcode else ""
             n_val = str(row[kolom_nama_barang]).strip()
             if b_val:
                 options_html += f'<option value="{b_val}">{n_val}</option>'
+                daftar_kode_valid.append(b_val)
             if n_val:
                 options_html += f'<option value="{n_val}"></option>'
+                daftar_kode_valid.append(n_val)
+        kode_valid_json = json.dumps(daftar_kode_valid)
 
         h_col0, h_col1, h_col2, h_col3, h_col4 = st.columns([1.8, 3, 2, 2, 1])
         with h_col0:
@@ -651,6 +655,11 @@ else:
                              const val = encodeURIComponent(this.value);
                              window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + val;
                          }}"
+                         oninput="const kodeValid = {kode_valid_json};
+                             if (kodeValid.includes(this.value)) {{
+                                 const val = encodeURIComponent(this.value);
+                                 window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + val;
+                             }}"
                          onchange="const val = encodeURIComponent(this.value); window.parent.location.href = window.parent.location.pathname + '?scan_idx={idx}&scan_val=' + val;" />
                   <datalist id="list_produk_{idx}">
                     {options_html}
