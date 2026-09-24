@@ -9,7 +9,7 @@ import urllib.parse
 import streamlit.components.v1 as components
 from streamlit_qrcode_scanner import qrcode_scanner
 
-st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="💼", layout="wide")
+st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🛒", layout="wide")
 
 # --- CSS: TAMPILAN CLASSIC, PROFESIONAL, & BERSIH ---
 st.markdown(
@@ -220,7 +220,7 @@ df_produk, data_dari_sheet = muat_produk()
 df_produk = df_produk.copy()
 
 if not data_dari_sheet:
-    st.error("⚠️ Gagal mengambil data dari internet. Memakai data cadangan sementara.")
+    st.error("⚠️ Gagal mengambil data dari internet.")
 
 kolom_nama_opsi = ["Nama Barang", "nama barang", "Nama", "nama", "Produk", "produk"]
 kolom_nama_barang = next((c for c in kolom_nama_opsi if c in df_produk.columns), df_produk.columns[0])
@@ -271,7 +271,7 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
         ]
 
     if len(df_match) == 0:
-        st.session_state.pesan = ("warning", f"⚠️ Barang '{val}' tidak ditemukan.")
+        st.session_state.pesan = ("⚠️ Barang '{val}' tidak ditemukan.")
     elif len(df_match) == 1:
         row = df_match.iloc[0]
         bcode = str(row[kolom_barcode]).strip() if kolom_barcode else "-"
@@ -453,7 +453,7 @@ if st.session_state.menu_aktif is None:
     with c1:
         with st.container():
             st.markdown('<div class="menu-btn">', unsafe_allow_html=True)
-            if st.button("🛒  KASIR UTAMA", key="menu_kasir_utama"):
+            if st.button("KASIR UTAMA", key="menu_kasir_utama"):
                 st.session_state.menu_aktif = "Kasir"
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -461,7 +461,7 @@ if st.session_state.menu_aktif is None:
     with c2:
         with st.container():
             st.markdown('<div class="menu-btn">', unsafe_allow_html=True)
-            if st.button("📋  CEK HARGA", key="menu_cari_harga"):
+            if st.button("CEK HARGA", key="menu_cari_harga"):
                 st.session_state.menu_aktif = "Database"
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -469,7 +469,7 @@ if st.session_state.menu_aktif is None:
     with c3:
         with st.container():
             st.markdown('<div class="menu-btn">', unsafe_allow_html=True)
-            if st.button("➕  TAMBAH BARANG", key="menu_tambah_barang"):
+            if st.button("TAMBAH BARANG", key="menu_tambah_barang"):
                 st.session_state.menu_aktif = "Tambah"
                 st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
@@ -478,21 +478,21 @@ else:
     st.markdown("---")
     nav1, nav2, nav3, nav_kosong = st.columns([1, 1, 1, 4])
     with nav1:
-        if st.button("🛒 Kasir", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Kasir" else "secondary"):
+        if st.button("Kasir", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Kasir" else "secondary"):
             st.session_state.menu_aktif = "Kasir"
             st.rerun()
     with nav2:
-        if st.button("📋 Harga", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Database" else "secondary"):
+        if st.button("Harga", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Database" else "secondary"):
             st.session_state.menu_aktif = "Database"
             st.rerun()
     with nav3:
-        if st.button("➕ Tambah", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Tambah" else "secondary"):
+        if st.button("Tambah", use_container_width=True, type="primary" if st.session_state.menu_aktif == "Tambah" else "secondary"):
             st.session_state.menu_aktif = "Tambah"
             st.rerun()
     st.markdown("---")
 
     if st.session_state.menu_aktif == "Database":
-        st.subheader("📋 Daftar Barang & Cek Harga")
+        st.subheader("Daftar Barang")
         
         buka_kamera_db = st.checkbox("📷 Aktifkan Pemindai Kamera", value=False, key="toggle_kamera_db")
         if buka_kamera_db:
@@ -502,7 +502,7 @@ else:
                 st.session_state.scan_counter_db += 1
                 st.rerun()
 
-        search_database = st.text_input("🔍 Cari Nama Barang / Barcode:", placeholder="Ketik kata kunci...", key="search_db")
+        search_database = st.text_input("Cari Nama Barang / Barcode:", placeholder="Ketik kata kunci...", key="search_db")
         df_tampil = df_produk.drop(columns="_kode", errors="ignore")
         if search_database:
             kata = search_database.strip()
@@ -525,7 +525,7 @@ else:
         if not kolom_barcode:
             st.error("Kolom Barcode tidak ditemukan pada lembar data.")
         else:
-            buka_kamera_tambah = st.checkbox("📷 Aktifkan Kamera untuk Scan Barcode", value=False, key="toggle_kamera_tambah")
+            buka_kamera_tambah = st.checkbox("Aktifkan Kamera untuk Scan Barcode", value=False, key="toggle_kamera_tambah")
             if buka_kamera_tambah:
                 hasil_scan_tambah = qrcode_scanner(key=f"scanner_tambah_{st.session_state.scan_counter_tambah}")
                 if hasil_scan_tambah:
@@ -551,7 +551,7 @@ else:
                 getattr(st, tipe_t)(teks_t)
 
     elif st.session_state.menu_aktif == "Kasir":
-        st.markdown("### 🏷️ Kategori Harga Pelanggan")
+        st.markdown("### Kategori Harga Pelanggan")
         jenis_pelanggan = st.selectbox(
             "Pilih kategori:",
             ["Umum", "Bakul", "Umum Antar", "Usaha"],
@@ -578,7 +578,7 @@ else:
             tipe, teks = st.session_state.pesan
             getattr(st, tipe)(teks)
 
-        st.markdown("### 🛒 Daftar Transaksi")
+        st.markdown("### Daftar Transaksi")
 
         if st.session_state.scan_counter_kasir_aktif is not None:
             idx_aktif = st.session_state.scan_counter_kasir_aktif
@@ -662,7 +662,7 @@ else:
             st.button("＋ Tambah Baris", on_click=tambah_baris_kosong, use_container_width=True)
         with col_batal_aksi:
             if st.session_state.riwayat:
-                st.button("↩️ Batalkan Aksi", on_click=batalkan_terakhir, use_container_width=True)
+                st.button("↩️ Batalkan", on_click=batalkan_terakhir, use_container_width=True)
 
         if len(st.session_state.keranjang) > 0:
             df_keranjang = pd.DataFrame(st.session_state.keranjang)
@@ -709,7 +709,7 @@ else:
                     st.button("Batal", on_click=batal_kosongkan, use_container_width=True)
 
             st.markdown("---")
-            st.markdown("### Cetak & Kirim Nota")
+            st.markdown("### Cetak Nota")
 
             waktu_sekarang = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             printer_width = 32
