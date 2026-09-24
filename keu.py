@@ -234,6 +234,7 @@ if kolom_barcode:
 defaults = {
     "menu_aktif": None,
     "keranjang": [],
+    "lain_lain": [],  # Menyimpan daftar catatan tambahan (diskon, ongkir, dsb)
     "scan_counter_db": 0,
     "scan_counter_tambah": 0,
     "scan_counter_kasir_aktif": None,
@@ -331,6 +332,15 @@ def tambah_baris_kosong():
     st.session_state.editor_counter += 1
 
 
+def tambah_baris_lain():
+    st.session_state.lain_lain.append({"tipe": "Diskon", "nominal": 0})
+
+
+def hapus_baris_lain(idx):
+    if 0 <= idx < len(st.session_state.lain_lain):
+        st.session_state.lain_lain.pop(idx)
+
+
 def ubah_qty_langsung(index_item, delta):
     simpan_riwayat()
     if 0 <= index_item < len(st.session_state.keranjang):
@@ -369,6 +379,7 @@ def batal_kosongkan():
 def kosongkan_keranjang():
     simpan_riwayat()
     st.session_state.keranjang = []
+    st.session_state.lain_lain = []
     st.session_state.pesan = ("info", "🗑️ Keranjang dikosongkan.")
     st.session_state.konfirmasi_kosong = False
     st.session_state.editor_counter += 1
@@ -668,26 +679,36 @@ else:
             df_keranjang = pd.DataFrame(st.session_state.keranjang)
             subtotal_barang = int(df_keranjang["Subtotal"].sum()) if not df_keranjang.empty else 0
 
-            st.markdown("### Lain-Lain")
-            col_ll1, col_ll2 = st.columns(2)
-            with col_ll1:
-                tipe_lain = st.selectbox("Pilih Jenis", ["Diskon", "Ongkir", "Arisan"], key="pilih_tipe_lain")
-            with col_ll2:
-                nominal_lain = int(st.number_input("Nominal (Rp)", min_value=0, value=0, step=500, key="nominal_lain_input"))
+            st.markdown("### Lain-Lain (Diskon / Ongkir / Arisan)")
+            
+            # Tombol untuk menambah baris Lain-Lain baru
+            st.button("＋ Tambah Catatan Lain-Lain", on_click=tambah_baris_lain)
 
-            # Logika perhitungan sesuai permintaan
-            diskon = 0
-            ongkir = 0
-            arisan = 0
+            total_diskon = 0
+            total_penambah = 0
+            rincian_lain = []
 
-            if tipe_lain == "Diskon":
-                diskon = min(nominal_lain, subtotal_barang)
-            elif tipe_lain == "Ongkir":
-                ongkir = nominal_lain
-            elif tipe_lain == "Arisan":
-                arisan = nominal_lain
+            for i, ll in enumerate(st.session_state.lain_lain):
+                c_ll1, c_ll2, c_ll3 = st.columns([2, 2, 0.8])
+                with c_ll1:
+                    ll["tipe"] = st.selectbox("Jenis", ["Diskon", "Ongkir", "Arisan"], key=f"tipe_ll_{i}", index=["Diskon", "Ongkir", "Arisan"].index(ll["tipe"]))
+                with c_ll2:
+                    ll["nominal"] = int(st.number_input("Nominal (Rp)", min_value=0, value=ll["nominal"], step=500, key=f"Nominal_ll_{i}"))
+                with c_ll3:
+                    st.markdown("<br>", unsafe_allow_html=True)
+                    if st.button("❌", key=f"del_ll_{i}", help="Hapus baris ini"):
+                        hapus_baris_lain(i)
+                        st.rerun()
 
-            total_belanja_semua = subtotal_barang - diskon + ongkir + arisan
+                if ll["tipe"] == "Diskon":
+                    total_diskon += ll["nominal"]
+                    rincian_lain.append(("Diskon", -ll["nominal"]))
+                else:
+                    total_penambah += ll["nominal"]
+                    rincian_lain.append((ll["tipe"], ll["nominal"]))
+
+            total_diskon = min(total_diskon, subtotal_barang)
+            total_belanja_semua = subtotal_barang - total_diskon + total_penambah
 
             st.markdown("")
             st.markdown(f"### TOTAL BAYAR: **Rp {rp(total_belanja_semua)}**")
@@ -731,16 +752,6 @@ else:
             tunai_str = rp(uang_tunai)
             kembalian_str = rp(uang_kembalian)
 
-            rincian = []
-            if nominal_lain > 0:
-                rincian.append(("Subtotal", rp(subtotal_barang)))
-                if tipe_lain == "Diskon":
-                    rincian.append(("Diskon", "-" + rp(diskon)))
-                elif tipe_lain == "Ongkir":
-                    rincian.append(("Ongkir", rp(ongkir)))
-                elif tipe_lain == "Arisan":
-                    rincian.append(("Arisan", rp(arisan)))
-
             INIT = b'\x1b\x40'
             ALIGN_CENTER = b'\x1b\x61\x01'
             ALIGN_LEFT = b'\x1b\x61\x00'
@@ -771,10 +782,13 @@ else:
                 add_line("")
 
             add_line("-" * printer_width, ALIGN_CENTER)
-            if rincian:
-                for lbl, val in rincian:
-                    add_line(baris_kiri_kanan(lbl, val))
+            if rincian_lain:
+                add_line(baris_kiri_kanan("Subtotal", rp(subtotal_barang)))
+                for lbl, val in rincian_lain:
+                    val_str = ("-" if val < 0 else "") + rp(abs(val))
+                    add_line(baris_kiri_kanan(lbl, val_str))
                 add_line("-" * printer_width, ALIGN_CENTER)
+                
             add_line(baris_kiri_kanan("Total", total_str), bold=True)
             add_line(baris_kiri_kanan("Tunai", tunai_str))
             add_line(baris_kiri_kanan("Kembalian", kembalian_str))
@@ -800,9 +814,11 @@ else:
                     f"  {rp(item['Harga Satuan'])} x {item['Qty']} = *Rp {rp(item['Subtotal'])}*\n\n"
                 )
             pesan_wa += "----------------------------------\n"
-            if rincian:
-                for lbl, val in rincian:
-                    pesan_wa += f"{lbl}: Rp {val}\n"
+            if rincian_lain:
+                pesan_wa += f"Subtotal : Rp {rp(subtotal_barang)}\n"
+                for lbl, val in rincian_lain:
+                    val_str = ("-" if val < 0 else "") + rp(abs(val))
+                    pesan_wa += f"{lbl} : Rp {val_str}\n"
                 pesan_wa += "----------------------------------\n"
             pesan_wa += (
                 f"Total    : *Rp {total_str}*\n"
