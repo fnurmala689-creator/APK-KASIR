@@ -697,6 +697,10 @@ else:
 
         for idx, item in enumerate(st.session_state.keranjang):
             row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
+
+
+
+        
            with row_c0:
                 val_bc = item.get("Input_Barcode", item.get("Barcode", ""))
 
@@ -729,6 +733,8 @@ else:
                   </datalist>
                 </div>
                 """, height=45)
+
+                
 
             with row_c0_cam:
                 st.markdown("<div style='margin-top: 2px;'>", unsafe_allow_html=True)
