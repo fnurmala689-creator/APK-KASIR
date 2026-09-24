@@ -271,7 +271,7 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
         ]
 
     if len(df_match) == 0:
-        st.session_state.pesan = ("⚠️ Barang '{val}' tidak ditemukan.")
+        st.session_state.pesan = ("warning", f"⚠️ Barang '{val}' tidak ditemukan.")
     elif len(df_match) == 1:
         row = df_match.iloc[0]
         bcode = str(row[kolom_barcode]).strip() if kolom_barcode else "-"
@@ -668,16 +668,25 @@ else:
             df_keranjang = pd.DataFrame(st.session_state.keranjang)
             subtotal_barang = int(df_keranjang["Subtotal"].sum()) if not df_keranjang.empty else 0
 
-            st.markdown("### Rincian Biaya")
-            col_dk1, col_dk2, col_dk3 = st.columns(3)
-            with col_dk1:
-                diskon_input = st.number_input("Diskon (Rp)", min_value=0, value=0, step=500, key="diskon_input")
-            with col_dk2:
-                ongkir = int(st.number_input("Ongkir (Rp)", min_value=0, value=0, step=500, key="ongkir_input"))
-            with col_dk3:
-                arisan = int(st.number_input("Arisan (Rp)", min_value=0, value=0, step=1000, key="arisan_input"))
+            st.markdown("### Lain-Lain")
+            col_ll1, col_ll2 = st.columns(2)
+            with col_ll1:
+                tipe_lain = st.selectbox("Pilih Jenis", ["Diskon", "Ongkir", "Arisan"], key="pilih_tipe_lain")
+            with col_ll2:
+                nominal_lain = int(st.number_input("Nominal (Rp)", min_value=0, value=0, step=500, key="nominal_lain_input"))
 
-            diskon = min(int(diskon_input), subtotal_barang)
+            # Logika perhitungan sesuai permintaan
+            diskon = 0
+            ongkir = 0
+            arisan = 0
+
+            if tipe_lain == "Diskon":
+                diskon = min(nominal_lain, subtotal_barang)
+            elif tipe_lain == "Ongkir":
+                ongkir = nominal_lain
+            elif tipe_lain == "Arisan":
+                arisan = nominal_lain
+
             total_belanja_semua = subtotal_barang - diskon + ongkir + arisan
 
             st.markdown("")
@@ -723,13 +732,13 @@ else:
             kembalian_str = rp(uang_kembalian)
 
             rincian = []
-            if diskon > 0 or ongkir > 0 or arisan > 0:
+            if nominal_lain > 0:
                 rincian.append(("Subtotal", rp(subtotal_barang)))
-                if diskon > 0:
+                if tipe_lain == "Diskon":
                     rincian.append(("Diskon", "-" + rp(diskon)))
-                if ongkir > 0:
+                elif tipe_lain == "Ongkir":
                     rincian.append(("Ongkir", rp(ongkir)))
-                if arisan > 0:
+                elif tipe_lain == "Arisan":
                     rincian.append(("Arisan", rp(arisan)))
 
             INIT = b'\x1b\x40'
