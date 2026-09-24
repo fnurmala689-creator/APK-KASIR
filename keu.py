@@ -647,6 +647,27 @@ else:
                         st.session_state.scan_counter_kasir_aktif = idx
                         st.rerun()
 
+                # Bagian Qty dalam satu baris: [ - ] [ Input Angka ] [ + ] serta tombol Hapus
+                q_c_min, q_c_input, q_c_plus, q_c_del = st.columns([0.8, 1.5, 0.8, 1])
+                with q_c_min:
+                    if st.button("-", key=f"min_{idx}", use_container_width=True):
+                        ubah_qty_langsung(idx, -1)
+                        st.rerun()
+                with q_c_input:
+                    key_q_input = f"qty_input_{idx}_{st.session_state.editor_counter}"
+                    st.number_input(
+                        "Qty",
+                        min_value=1,
+                        value=int(item["Qty"]),
+                        step=1,
+                        key=key_q_input,
+                        label_visibility="collapsed",
+                        on_change=update_qty_ketik,
+                        args=(idx, key_q_input)
+                    )
+                with q_c_plus:
+                    if st.button("+", key=f"plus_{idx}", use_container_width=True):
+                        ubah_qty_langsung(idx, 1)
                         st.rerun()
                 with q_c_del:
                     if st.button("🗑️ Hapus", key=f"del_{idx}", use_container_width=True):
