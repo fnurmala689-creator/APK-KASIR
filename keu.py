@@ -11,7 +11,7 @@ from streamlit_qrcode_scanner import qrcode_scanner
 
 st.set_page_config(page_title="TOKO JABON KIDUL SEPUR", page_icon="🤞", layout="wide")
 
-# --- CSS: BUBBLE HANYA UNTUK MENU UTAMA, TOMBOL LAIN NORMAL ---
+# --- CSS STYLING ---
 st.markdown(
     """
     <style>
@@ -273,7 +273,10 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
 
     simpan_riwayat()
     
-    # Pencarian menyeluruh mencocokkan input ke kolom Barcode ATAU Nama Barang di spreadsheet
+    # Simpan input mentah ke keranjang terlebih dahulu
+    st.session_state.keranjang[idx_baris]["Input_Barcode"] = val
+
+    # Pencarian mencocokkan input ke kolom Barcode ATAU Nama Barang di spreadsheet
     mask = pd.Series(False, index=df_produk.index)
     if kolom_barcode and "_kode" in df_produk.columns:
         mask = mask | (df_produk["_kode"] == norm_kode(val))
@@ -285,6 +288,14 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
     df_match = df_produk[mask]
 
     if len(df_match) == 0:
+        st.session_state.keranjang[idx_baris].update({
+            "Barcode": val,
+            "Nama Barang": f"⚠️ Tidak Ditemukan: {val}",
+            "Harga Satuan": 0,
+            "Subtotal": 0,
+        })
+        if "_dropdown_pilihan" in st.session_state.keranjang[idx_baris]:
+            del st.session_state.keranjang[idx_baris]["_dropdown_pilihan"]
         st.session_state.pesan = ("warning", f"⚠️ Barang '{val}' tidak ditemukan di spreadsheet.")
     elif len(df_match) == 1:
         row = df_match.iloc[0]
@@ -292,13 +303,14 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
         nm = str(row[kolom_nama_barang]).strip() or "(Tanpa Nama)"
         hg = int(row[kolom_harga_pilihan])
         
-        st.session_state.keranjang[idx_baris] = {
+        st.session_state.keranjang[idx_baris].update({
             "Barcode": bcode,
             "Nama Barang": nm,
-            "Qty": 1,
             "Harga Satuan": hg,
-            "Subtotal": hg,
-        }
+            "Subtotal": st.session_state.keranjang[idx_baris]["Qty"] * hg,
+        })
+        if "_dropdown_pilihan" in st.session_state.keranjang[idx_baris]:
+            del st.session_state.keranjang[idx_baris]["_dropdown_pilihan"]
         st.session_state.pesan = ("success", f"✅ Berhasil memuat: **{nm}** (Rp {rp(hg)})")
     else:
         opsi_list = []
@@ -315,13 +327,14 @@ def proses_input_barcode(idx_baris, input_val, kolom_harga_pilihan):
 
 def pilih_dari_dropdown(idx_baris, bcode, nm, hg):
     simpan_riwayat()
-    st.session_state.keranjang[idx_baris] = {
+    qty_sekarang = st.session_state.keranjang[idx_baris].get("Qty", 1)
+    st.session_state.keranjang[idx_baris].update({
         "Barcode": bcode,
+        "Input_Barcode": bcode,
         "Nama Barang": nm,
-        "Qty": 1,
         "Harga Satuan": hg,
-        "Subtotal": hg,
-    }
+        "Subtotal": qty_sekarang * hg,
+    })
     if "_dropdown_pilihan" in st.session_state.keranjang[idx_baris]:
         del st.session_state.keranjang[idx_baris]["_dropdown_pilihan"]
     st.session_state.pesan = ("success", f"✅ Dipilih: **{nm}** (Rp {rp(hg)})")
@@ -332,6 +345,7 @@ def tambah_baris_kosong():
     simpan_riwayat()
     st.session_state.keranjang.append({
         "Barcode": "",
+        "Input_Barcode": "",
         "Nama Barang": "Ketik barcode atau nama barang...",
         "Qty": 1,
         "Harga Satuan": 0,
@@ -630,6 +644,7 @@ else:
         if not st.session_state.keranjang:
             st.session_state.keranjang.append({
                 "Barcode": "",
+                "Input_Barcode": "",
                 "Nama Barang": "Ketik barcode atau nama barang...",
                 "Qty": 1,
                 "Harga Satuan": 0,
@@ -683,9 +698,7 @@ else:
         for idx, item in enumerate(st.session_state.keranjang):
             row_c0, row_c0_cam, row_c1, row_c2, row_c3, row_c4 = st.columns([1.3, 0.5, 3, 2, 2, 1])
             with row_c0:
-                val_bc = item.get("Barcode", "")
-                if not val_bc and item["Nama Barang"] != "Ketik barcode atau nama barang...":
-                    val_bc = item["Nama Barang"]
+                val_bc = item.get("Input_Barcode", item.get("Barcode", ""))
 
                 components.html(f"""
                 <div style="margin: 0px; padding: 0px; font-family: sans-serif;">
@@ -775,7 +788,6 @@ else:
                     "Uang Diterima dari Pembeli (Rp)", min_value=0, value=max(total_belanja_semua, 0), step=5000, key=f"uang_tunai_{total_belanja_semua}"
                 )
 
-            # Tombol Pending Nota
             st.markdown("")
             if st.button("⏸️ Pending Nota Ini (Simpan Sementara)", type="primary", use_container_width=True):
                 simpan_pending(nama_pembeli)
