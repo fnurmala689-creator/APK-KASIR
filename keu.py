@@ -518,6 +518,12 @@ else:
     if st.session_state.menu_aktif == "Database":
         st.subheader("Daftar Barang")
         
+        # Tombol untuk memperbarui cache data dari Google Sheet secara instan
+        if st.button("🔄 Muat Ulang Data Terbaru", use_container_width=True):
+            muat_produk.clear()
+            st.success("Data berhasil diperbarui!")
+            st.rerun()
+
         buka_kamera_db = st.checkbox("📷 Aktifkan Pemindai Kamera", value=False, key="toggle_kamera_db")
         if buka_kamera_db:
             hasil_scan_db = qrcode_scanner(key=f"scanner_db_{st.session_state.scan_counter_db}")
