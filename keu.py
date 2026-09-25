@@ -518,7 +518,6 @@ else:
     if st.session_state.menu_aktif == "Database":
         st.subheader("Daftar Barang")
         
-        # Tombol untuk memperbarui cache data dari Google Sheet secara instan
         if st.button("🔄 Muat Ulang Data Terbaru", use_container_width=True):
             muat_produk.clear()
             st.success("Data berhasil diperbarui!")
@@ -546,6 +545,11 @@ else:
         for c in df_tampil.columns:
             if c.lower().startswith("harga"):
                 df_tampil[c] = df_tampil[c].map(rp)
+        
+        # Mengatur agar penomoran baris tabel dimulai dari 1
+        df_tampil = df_tampil.reset_index(drop=True)
+        df_tampil.index = df_tampil.index + 1
+
         st.dataframe(df_tampil, use_container_width=True)
 
     elif st.session_state.menu_aktif == "Tambah":
