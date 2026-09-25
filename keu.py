@@ -40,7 +40,6 @@ st.markdown(
         box-shadow: 0 2px 4px rgba(0, 0, 0, 0.04);
     }
 
-    /* Penyesuaian khusus tampilan HP agar elemen tidak terlalu mepet */
     @media (max-width: 768px) {
         .block-container {
             padding-left: 0.5rem;
@@ -105,6 +104,12 @@ def norm_kode(x):
 
 def rp(angka):
     return f"{angka:,.0f}".replace(",", ".")
+
+
+def parse_angka(val):
+    """Fungsi helper untuk membersihkan input string angka agar aman dari karakter non-digit"""
+    s = "".join(filter(str.isdigit, str(val)))
+    return int(s) if s else 0
 
 
 HTML_CETAK_BLE = """
@@ -352,13 +357,12 @@ def hapus_baris_lain(idx):
 def update_qty_ketik(index_item, key_qty_widget):
     simpan_riwayat()
     if 0 <= index_item < len(st.session_state.keranjang):
-        val_baru = int(st.session_state.get(key_qty_widget, 1) or 1)
-        item = st.session_state.keranjang[index_item]
+        val_baru = parse_angka(st.session_state.get(key_qty_widget, 1))
         if val_baru <= 0:
-            st.session_state.keranjang.pop(index_item)
-        else:
-            item["Qty"] = val_baru
-            item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
+            val_baru = 1
+        item = st.session_state.keranjang[index_item]
+        item["Qty"] = val_baru
+        item["Subtotal"] = item["Qty"] * item["Harga Satuan"]
         st.session_state.editor_counter += 1
 
 
@@ -420,7 +424,7 @@ def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
 
     values = {kol_barcode: barcode, kol_nama: nama}
     for c in kol_harga_list:
-        v = int(st.session_state.get(f"tambah_{c}", 0) or 0)
+        v = parse_angka(st.session_state.get(f"tambah_{c}", 0))
         values[c] = v if v > 0 else ""
 
     payload = {"token": token, "kolom_barcode": kol_barcode, "values": values}
@@ -442,7 +446,7 @@ def simpan_barang(kol_barcode, kol_nama, kol_harga_list):
         st.session_state.tambah_barcode = ""
         st.session_state.tambah_nama = ""
         for c in kol_harga_list:
-            st.session_state[f"tambah_{c}"] = 0
+            st.session_state[f"tambah_{c}"] = ""
     else:
         st.session_state.pesan_tambah = ("error", f"⚠️ Ditolak: {hasil.get('error', 'kesalahan')}")
 
@@ -559,7 +563,10 @@ else:
             if kolom_harga_list:
                 st.markdown("#### Pengaturan Harga")
                 for c in kolom_harga_list:
-                    st.number_input(c, min_value=0, value=0, step=500, key=f"tambah_{c}")
+                    k_tambah = f"tambah_{c}"
+                    if k_tambah not in st.session_state:
+                        st.session_state[k_tambah] = ""
+                    st.text_input(c, key=k_tambah, placeholder="Contoh: 15000")
 
             st.markdown("")
             st.button("Simpan Data Barang", type="primary", on_click=simpan_barang, args=(kolom_barcode, kolom_nama_barang, kolom_harga_list), use_container_width=True)
@@ -613,7 +620,6 @@ else:
                 st.rerun()
             st.markdown("---")
 
-        # Tampilan Item Keranjang Runtut per Baris dengan Qty (Input Angka) dan Tombol Hapus
         for idx, item in enumerate(st.session_state.keranjang):
             with st.container(border=True):
                 st.markdown(f"**#{idx + 1} - {item['Nama Barang']}**")
@@ -635,21 +641,21 @@ else:
                         st.session_state.scan_counter_kasir_aktif = idx
                         st.rerun()
 
-                # Bagian Qty (Input Angka) serta tombol Hapus
                 q_c_input, q_c_del = st.columns([2.3, 1])
                 with q_c_input:
                     key_q_input = f"qty_input_{idx}_{st.session_state.editor_counter}"
-                    st.number_input(
+                    if key_q_input not in st.session_state:
+                        st.session_state[key_q_input] = str(item["Qty"])
+                    st.text_input(
                         "Qty",
-                        min_value=1,
-                        value=int(item["Qty"]),
-                        step=1,
+                        value=str(item["Qty"]),
                         key=key_q_input,
                         label_visibility="collapsed",
                         on_change=update_qty_ketik,
                         args=(idx, key_q_input)
                     )
                 with q_c_del:
+                    st.markdown("<br>", unsafe_allow_html=True)
                     if st.button("🗑️ Hapus", key=f"del_{idx}", use_container_width=True):
                         hapus_item_satuan(idx)
                         st.rerun()
@@ -687,7 +693,11 @@ else:
                     with c_ll1:
                         ll["tipe"] = st.selectbox("Jenis", ["Diskon", "Ongkir", "Arisan"], key=f"tipe_ll_{i}", index=["Diskon", "Ongkir", "Arisan"].index(ll["tipe"]))
                     with c_ll2:
-                        ll["nominal"] = int(st.number_input("Nominal (Rp)", min_value=0, value=ll["nominal"], step=500, key=f"Nominal_ll_{i}"))
+                        k_nominal_ll = f"Nominal_ll_str_{i}"
+                        if k_nominal_ll not in st.session_state:
+                            st.session_state[k_nominal_ll] = str(ll["nominal"]) if ll["nominal"] > 0 else ""
+                        val_str_ll = st.text_input("Nominal (Rp)", key=k_nominal_ll, placeholder="0")
+                        ll["nominal"] = parse_angka(val_str_ll)
                     with c_ll3:
                         st.markdown("<br>", unsafe_allow_html=True)
                         if st.button("❌ Hapus", key=f"del_ll_{i}", use_container_width=True):
@@ -708,9 +718,13 @@ else:
             st.markdown(f"### TOTAL BAYAR: **Rp {rp(total_belanja_semua)}**")
 
             nama_pembeli = st.text_input("Nama Pelanggan", value="Pelanggan Umum", key="nama_pelanggan_input")
-            uang_tunai = st.number_input(
-                "Uang Tunai (Rp)", min_value=0, value=max(total_belanja_semua, 0), step=5000, key=f"uang_tunai_{total_belanja_semua}"
-            )
+            
+            k_uang_tunai = "uang_tunai_str_input"
+            if k_uang_tunai not in st.session_state:
+                st.session_state[k_uang_tunai] = str(total_belanja_semua) if total_belanja_semua > 0 else ""
+            
+            val_uang_str = st.text_input("Uang Tunai (Rp)", key=k_uang_tunai, placeholder="0")
+            uang_tunai = parse_angka(val_uang_str)
 
             uang_kembalian = uang_tunai - total_belanja_semua
             if uang_kembalian >= 0:
